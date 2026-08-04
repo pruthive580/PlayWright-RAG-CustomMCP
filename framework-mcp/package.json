@@ -1,0 +1,27 @@
+{
+  "name": "framework-mcp",
+  "version": "1.0.0",
+  "description": "Custom MCP server that lets a local LLM understand a Playwright POM framework: list page objects, search code, emit Mermaid architecture diagrams, and scaffold tests from natural language.",
+  "type": "module",
+  "bin": {
+    "framework-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "smoke": "node dist/smoke.js"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "playwright": "^1.62.1",
+    "ts-morph": "^28.0.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.2",
+    "tsx": "^4.23.5",
+    "typescript": "^7.0.2"
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "name": "playwright-pom-framework",
+  "version": "1.0.0",
+  "description": "Sample Playwright + TypeScript Page Object Model framework (SauceDemo) used as the system-under-test for the RAG/MCP framework-understanding activity.",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:ui": "playwright test --ui",
+    "test:smoke": "playwright test --grep @smoke",
+    "test:e2e": "playwright test --grep @e2e",
+    "report": "playwright show-report",
+    "codegen": "playwright codegen https://www.saucedemo.com"
+  },
+  "keywords": [
+    "playwright",
+    "typescript",
+    "pom",
+    "e2e"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "@playwright/mcp": "^0.0.78",
+    "@playwright/test": "^1.62.1",
+    "@types/node": "^26.1.2",
+    "typescript": "^7.0.2"
+  }
+}

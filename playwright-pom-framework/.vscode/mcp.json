@@ -1,0 +1,18 @@
+{
+  "servers": {
+    "playwright": {
+      "type": "stdio",
+      "command": "/usr/local/bin/node",
+      "args": ["/Users/bhargav/playwright-pom-framework/node_modules/@playwright/mcp/cli.js"]
+    },
+    "framework": {
+      "type": "stdio",
+      "command": "/usr/local/bin/node",
+      "args": ["/Users/bhargav/framework-mcp/dist/index.js"],
+      "env": {
+        "FRAMEWORK_ROOT": "${workspaceFolder}",
+        "FRAMEWORK_ONLY": "1"
+      }
+    }
+  }
+}
