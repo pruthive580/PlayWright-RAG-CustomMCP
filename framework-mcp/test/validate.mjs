@@ -38,7 +38,7 @@ const textOf = (res) =>
 const EXPECTED_TOOLS = [
   "list_page_objects", "list_tests", "get_test_conventions", "search_code",
   "read_file", "get_architecture", "semantic_search", "build_rag_index",
-  "retrieve_context", "code_map",
+  "retrieve_context", "code_map", "related_code",
   "create_test_file", "write_architecture_doc", "run_test", "diagnose_test",
 ];
 
@@ -94,6 +94,7 @@ async function main() {
     ["semantic_search", { query: "where do we sign in the standard user", topK: 3 }, (t) => /\.(ts|md)/.test(t)],
     ["retrieve_context", { query: "how do we log in the standard user", tokenBudget: 1000 }, (t) => /Context pack/.test(t) && /›/.test(t) && /LoginPage/.test(t)],
     ["code_map", { area: "pages" }, (t) => /class LoginPage/.test(t) && /\+ login/.test(t)],
+    ["related_code", { target: "InventoryPage" }, (t) => /InventoryPage/.test(t) && /used by|dependents/i.test(t)],
     ["create_test_file", { path: "generated/_probe.spec.ts", content: PROBE_SPEC }, (t) => /Created/.test(t)],
     ["run_test", { path: "tests/generated/_probe.spec.ts" }, (t) => /passed/.test(t)],
     ["diagnose_test", { path: "tests/generated/_probe.spec.ts" }, (t) => /"passed":\s*1/.test(t) && /"failed":\s*0/.test(t)],
@@ -156,23 +157,25 @@ async function main() {
     ["read_file", "Open and show me the contents of the file src/pages/LoginPage.ts."],
     ["semantic_search", "Semantically search the framework for where we handle login failures."],
     ["build_rag_index", "Rebuild the semantic-search embedding index."],
-    ["create_test_file", "Create a new spec file at generated/model_probe.spec.ts that checks the inventory page loads."],
+    ["create_test_file", "Create a new spec file at generated/model_probe.spec.ts that checks the inventory page loads.", ["get_test_conventions", "list_page_objects", "retrieve_context"]],
     ["write_architecture_doc", "Generate and write the ARCHITECTURE.md documentation file."],
     ["run_test", "Run the smoke tests for me."],
   ];
 
-  for (const [expected, prompt] of modelCases) {
+  for (const [expected, prompt, alt] of modelCases) {
     try {
       const calls = await askModel(prompt);
       const picked = calls.map((c) => c.function?.name);
-      const hit = picked.includes(expected);
+      const accept = [expected, ...(alt || [])]; // RAG-first: gathering context before create_test_file is valid
+      const chosen = picked.find((p) => accept.includes(p));
+      const hit = Boolean(chosen);
       let argsOk = true;
       if (hit) {
-        const c = calls.find((c) => c.function?.name === expected);
+        const c = calls.find((c) => c.function?.name === chosen);
         try { JSON.parse(c.function.arguments || "{}"); } catch { argsOk = false; }
       }
       record("adapter", expected, hit && argsOk,
-        hit ? `model called ${expected}${argsOk ? "" : " (bad args JSON)"}` : `model picked [${picked.join(", ") || "none"}]`);
+        hit ? `model called ${chosen}${argsOk ? "" : " (bad args JSON)"}` : `model picked [${picked.join(", ") || "none"}]`);
     } catch (e) {
       record("adapter", expected, false, `threw: ${String(e).slice(0, 100)}`);
     }

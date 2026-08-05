@@ -35,6 +35,9 @@ const TOOL_FILTER_MAX = Number(process.env.TOOL_FILTER_MAX || 24);  // hard cap 
 const TOOL_FILTER_FLOOR = Number(process.env.TOOL_FILTER_FLOOR || 6); // min tools when the prompt has signal (keeps the agent workable)
 const TOOL_FILTER_KEEP = process.env.TOOL_FILTER_KEEP ? new RegExp(process.env.TOOL_FILTER_KEEP, "i") : null; // always-keep tool-name regex (e.g. ^mcp_ to never drop your MCP tools)
 const TOOL_DENY = process.env.TOOL_DENY ? new RegExp(process.env.TOOL_DENY, "i") : null; // always-drop tool-name regex (e.g. scaffolders small models misfire on)
+const TOOL_SEMANTIC = process.env.TOOL_FILTER_SEMANTIC === "1"; // opt-in: rank tools by embedding similarity instead of keywords (needs an embeddings endpoint; falls back to lexical on error)
+const EMBED_URL = process.env.EMBED_URL || UPSTREAM + "/v1/embeddings";
+const EMBED_MODEL = process.env.EMBED_MODEL || "text-embedding-nomic-embed-text-v1.5";
 const RECENT_CAP = 200;
 const DETAIL_CAP = 80;
 
@@ -147,6 +150,53 @@ function filterToolsByPrompt(tools, messages) {
   for (const s of rest) {
     if (out.length >= TOOL_FILTER_MAX) break;
     if (s.score > 0 || out.length < TOOL_FILTER_FLOOR) out.push(s.t);
+  }
+  return out;
+}
+
+// Embedding-based (semantic) tool filtering — opt-in via TOOL_FILTER_SEMANTIC=1.
+const _toolVecCache = new Map();
+function _cos(a, b) {
+  let d = 0, na = 0, nb = 0;
+  for (let i = 0; i < a.length; i++) { d += a[i] * b[i]; na += a[i] * a[i]; nb += b[i] * b[i]; }
+  return d / (Math.sqrt(na) * Math.sqrt(nb) + 1e-8);
+}
+async function _embed(texts) {
+  const r = await fetch(EMBED_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model: EMBED_MODEL, input: texts }) });
+  if (!r.ok) throw new Error("embeddings HTTP " + r.status);
+  return (await r.json()).data.map((d) => d.embedding);
+}
+const _toolText = (t) => (fname(t) + " " + ((t.function && t.function.description) || "")).replace(/\s+/g, " ").slice(0, 1200);
+async function filterToolsSemantic(tools, messages) {
+  if (!Array.isArray(tools) || tools.length <= TOOL_FILTER_FLOOR) return tools;
+  const msgs = Array.isArray(messages) ? messages : [];
+  const query = msgs.filter((m) => m.role === "user").map(msgText).join(" ").slice(0, 2000);
+  const referenced = new Set();
+  for (const m of msgs) {
+    if (Array.isArray(m.tool_calls)) for (const c of m.tool_calls) if (c.function && c.function.name) referenced.add(c.function.name);
+    if (m.role === "tool" && m.name) referenced.add(m.name);
+  }
+  const missing = tools.filter((t) => !_toolVecCache.has(_toolText(t)));
+  let qvec;
+  try {
+    const vecs = await _embed([query, ...missing.map(_toolText)]);
+    qvec = vecs[0];
+    missing.forEach((t, i) => _toolVecCache.set(_toolText(t), vecs[i + 1]));
+  } catch (e) {
+    if (LOG) console.error("[slim] semantic filter → lexical fallback:", e.message);
+    return filterToolsByPrompt(tools, messages);
+  }
+  const scored = tools.map((t) => {
+    const keep = referenced.has(fname(t)) || (TOOL_FILTER_KEEP && TOOL_FILTER_KEEP.test(fname(t)));
+    const v = _toolVecCache.get(_toolText(t));
+    return { t, score: v ? _cos(qvec, v) : 0, keep };
+  });
+  const kept = scored.filter((s) => s.keep).map((s) => s.t);
+  const rest = scored.filter((s) => !s.keep).sort((a, b) => b.score - a.score);
+  const out = [...kept];
+  for (const s of rest) {
+    if (out.length >= TOOL_FILTER_MAX) break;
+    if (s.score > 0.25 || out.length < TOOL_FILTER_FLOOR) out.push(s.t);
   }
   return out;
 }
@@ -341,7 +391,7 @@ const server = http.createServer(async (req, res) => {
       if (!PASSTHROUGH && toolCount) {
         let tools = body.tools;
         if (TOOL_DENY) tools = tools.filter((t) => !TOOL_DENY.test(fname(t)));
-        if (TOOL_FILTER) tools = filterToolsByPrompt(tools, body.messages);
+        if (TOOL_FILTER) tools = TOOL_SEMANTIC ? await filterToolsSemantic(tools, body.messages) : filterToolsByPrompt(tools, body.messages);
         keptTools = tools.length;
         if (COMPRESS || STRIP_PARAM_DESC) tools = slimTools(tools);
         slimmed = { ...slimmed, tools };
@@ -375,7 +425,7 @@ server.listen(PORT, () => {
   console.error(`  proxy:      http://localhost:${PORT}/v1`);
   console.error(`  dashboard:  http://localhost:${PORT}/dashboard`);
   console.error(`  passthrough=${PASSTHROUGH} compress=${COMPRESS} stripParamDesc=${STRIP_PARAM_DESC} truncateDesc=${TRUNCATE_DESC} overrides=${Object.keys(OVERRIDES).length} noThink=${NO_THINK}`);
-  console.error(`  toolFilter=${TOOL_FILTER}${TOOL_FILTER ? ` (max=${TOOL_FILTER_MAX} floor=${TOOL_FILTER_FLOOR}${TOOL_FILTER_KEEP ? ` keep=/${TOOL_FILTER_KEEP.source}/` : ""})` : ""}${TOOL_DENY ? ` deny=/${TOOL_DENY.source}/` : ""}`);
+  console.error(`  toolFilter=${TOOL_FILTER}${TOOL_FILTER ? ` (${TOOL_SEMANTIC ? "semantic" : "lexical"} max=${TOOL_FILTER_MAX} floor=${TOOL_FILTER_FLOOR}${TOOL_FILTER_KEEP ? ` keep=/${TOOL_FILTER_KEEP.source}/` : ""})` : ""}${TOOL_DENY ? ` deny=/${TOOL_DENY.source}/` : ""}`);
 });
 
 // ─── Embedded dashboard ─────────────────────────────────────────────────────

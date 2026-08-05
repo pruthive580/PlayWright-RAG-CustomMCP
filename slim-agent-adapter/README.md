@@ -68,6 +68,9 @@ Keep your model server (LM Studio/Ollama) running as usual on `:1234`.
 | `TOOL_FILTER_FLOOR` | `6` | Min tools kept when the prompt has signal |
 | `NO_THINK` | `1` | Inject `/no_think` for matching models |
 | `NO_THINK_MATCH` | `qwen3` | Regex of model ids to disable thinking on |
+| `TOOL_FILTER_SEMANTIC` | `0` | Rank tools by embedding similarity instead of keywords (opt-in; falls back to lexical on any embed error) |
+| `EMBED_URL` | `<UPSTREAM>/v1/embeddings` | Embeddings endpoint used when `TOOL_FILTER_SEMANTIC=1` |
+| `EMBED_MODEL` | `text-embedding-nomic-embed-text-v1.5` | Embedding model id for semantic filtering |
 | `PASSTHROUGH` | `0` | **Switch:** transparent mode — no filtering/slimming/no_think. For high-spec setups that don't need the adapter's help but still want the dashboard. |
 | `LOG` | `1` | Log per-request token savings to stderr |
 

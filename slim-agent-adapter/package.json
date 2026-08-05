@@ -1,17 +1,25 @@
 {
   "name": "slim-agent-adapter",
-  "version": "0.1.0",
-  "description": "Zero-dependency OpenAI-compatible proxy that slims the per-request prompt (tool-schema compression + Qwen3 /no_think) so small local models stay fast on modest hardware.",
+  "version": "0.2.0",
+  "description": "Zero-dependency OpenAI-compatible proxy for local LLMs: prompt-driven tool filtering, tool-schema slimming, Qwen3 /no_think, and a live dashboard — so small local models stay fast in agent mode on modest hardware.",
   "type": "module",
   "bin": {
     "slim-agent-adapter": "index.mjs"
   },
+  "files": ["index.mjs", "overrides.example.json", "README.md"],
   "scripts": {
     "start": "node index.mjs"
   },
   "engines": {
     "node": ">=18"
   },
-  "keywords": ["mcp", "llm", "local", "openai", "proxy", "lmstudio", "ollama", "agent", "qa", "test-automation"],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pruthive580/PlayWright-RAG-CustomMCP.git",
+    "directory": "slim-agent-adapter"
+  },
+  "homepage": "https://github.com/pruthive580/PlayWright-RAG-CustomMCP/tree/main/slim-agent-adapter",
+  "bugs": "https://github.com/pruthive580/PlayWright-RAG-CustomMCP/issues",
+  "keywords": ["mcp", "llm", "local", "openai", "proxy", "lmstudio", "ollama", "agent", "tool-filtering", "qa", "test-automation"],
   "license": "MIT"
 }

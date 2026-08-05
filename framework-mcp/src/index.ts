@@ -16,7 +16,7 @@ import {
   writeArchitectureDoc,
 } from "./analysis.js";
 import { semanticSearch, buildIndex } from "./rag.js";
-import { retrieveContext, codeMap } from "./context.js";
+import { retrieveContext, codeMap, relatedCode } from "./context.js";
 import { runDiagnose } from "./diagnose.js";
 import { BrowserSession } from "./browser.js";
 
@@ -153,6 +153,17 @@ server.registerTool(
     inputSchema: { area: z.string().optional() },
   },
   async ({ area }) => reply(codeMap(ROOT, { area })),
+);
+
+server.registerTool(
+  "related_code",
+  {
+    title: "Related Code (structural / import graph)",
+    description:
+      "Given a file path or a symbol name (class / exported function), return its dependency neighbourhood: the symbols it defines, the project files it imports (dependencies), and the files that import it (dependents). Use this to understand impact/coupling before editing — the structural complement to retrieve_context.",
+    inputSchema: { target: z.string().describe("A file path (relative to root) or a class/function name") },
+  },
+  async ({ target }) => reply(relatedCode(ROOT, target)),
 );
 
 // ─── Browser automation ─────────────────────────────────────────────────────

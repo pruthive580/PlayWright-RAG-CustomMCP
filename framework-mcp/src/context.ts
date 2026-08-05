@@ -123,6 +123,52 @@ export async function retrieveContext(root: string, query: string, opts: Retriev
   return { query, tokenBudget, tokensUsed: used, items, text };
 }
 
+/**
+ * Structural retrieval: given a file path or symbol name, return its dependency
+ * neighbourhood — the symbols it defines, the project files it imports (deps),
+ * and the files that import it (usedBy). Complements semantic retrieval with the
+ * import graph, so a small model sees the right *structural* context.
+ */
+export function relatedCode(root: string, target: string): string {
+  const project = createProject(root);
+  const rel = (p: string) => path.relative(root, p);
+  const files = project.getSourceFiles();
+
+  let tf = files.find((sf) => rel(sf.getFilePath()) === target || sf.getFilePath().endsWith("/" + target));
+  if (!tf) tf = files.find((sf) => sf.getClasses().some((c) => c.getName() === target) || sf.getFunctions().some((f) => f.getName() === target));
+  if (!tf) return `No file or symbol matching "${target}" was found. Try a class name, an exported function, or a file path.`;
+
+  const tfp = tf.getFilePath();
+  const symbols: string[] = [];
+  for (const cls of tf.getClasses()) {
+    symbols.push(`class ${cls.getName() ?? "Anon"}${cls.getExtends() ? ` extends ${cls.getExtends()!.getExpression().getText()}` : ""}`);
+    for (const m of cls.getInstanceMethods().filter((x) => x.getScope() !== Scope.Private)) {
+      symbols.push(`  + ${m.getName()}(${m.getParameters().map((p) => p.getName()).join(", ")})`);
+    }
+  }
+  for (const fn of tf.getFunctions()) if (fn.getName()) symbols.push(`fn ${fn.getName()}(${fn.getParameters().map((p) => p.getName()).join(", ")})`);
+
+  const deps: string[] = [];
+  for (const imp of tf.getImportDeclarations()) {
+    const src = imp.getModuleSpecifierSourceFile();
+    if (src && !src.getFilePath().includes("/node_modules/")) deps.push(rel(src.getFilePath()));
+  }
+  const usedBy: string[] = [];
+  for (const sf of files) {
+    if (sf === tf) continue;
+    for (const imp of sf.getImportDeclarations()) {
+      if (imp.getModuleSpecifierSourceFile()?.getFilePath() === tfp) { usedBy.push(rel(sf.getFilePath())); break; }
+    }
+  }
+
+  return [
+    `# ${rel(tfp)}`,
+    symbols.length ? "\n## defines\n" + symbols.join("\n") : "",
+    deps.length ? "\n## imports (dependencies)\n" + [...new Set(deps)].map((d) => "- " + d).join("\n") : "\n## imports (dependencies)\n(none in-project)",
+    usedBy.length ? "\n## used by (dependents)\n" + [...new Set(usedBy)].map((d) => "- " + d).join("\n") : "\n## used by (dependents)\n(none in-project)",
+  ].filter(Boolean).join("\n");
+}
+
 /** A signatures-only skeleton of the framework — breadth without the token cost of full source. */
 export function codeMap(root: string, opts: { area?: string } = {}): string {
   const project = createProject(root);
