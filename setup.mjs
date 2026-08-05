@@ -102,7 +102,7 @@ async function main() {
     if (which("ollama")) {
       const have = out("ollama", ["list"]) || "";
       if (!have.includes(model.split("/").pop().split(":")[0])) { warn(`pulling ${model} …`); run("ollama", ["pull", model]); } else ok(`Ollama has ${model}`);
-      if (!have.includes("nomic-embed-text")) { warn("pulling nomic-embed-text (for RAG embeddings) …"); run("ollama", ["pull", "nomic-embed-text"]); } else ok("Ollama has nomic-embed-text");
+      if (!have.includes("nomic-embed-text")) { warn("pulling nomic-embed-text — REQUIRED for RAG retrieval …"); run("ollama", ["pull", "nomic-embed-text"]); } else ok("Ollama has nomic-embed-text (RAG embeddings)");
     } else {
       warn("Ollama CLI not found. Install Ollama, then: ollama pull " + model + " && ollama pull nomic-embed-text");
     }
@@ -116,7 +116,7 @@ async function main() {
       }
     }
     run(lms, ["load", model, "-c", String(ctx), "--parallel", "1", "--gpu", "max"]) ? ok(`loaded ${model} @ ${ctx}`) : warn(`could not load ${model} (download it in LM Studio first)`);
-    run(lms, ["load", embModel]) ? ok(`loaded embeddings ${embModel}`) : warn("could not load embedding model");
+    run(lms, ["load", embModel]) ? ok(`loaded RAG embeddings (required): ${embModel}`) : bad(`FAILED to load ${embModel} — RAG (retrieve_context / check_coverage) will NOT work until this embedding model is loaded.`);
   } else {
     warn("Skipping model load (no lms CLI). Install LM Studio, then load:");
     say(`     lms load ${model} -c ${ctx} --parallel 1 --gpu max`);

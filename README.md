@@ -45,6 +45,21 @@ You drive it in **plain English** — no need to name the tools; the assistant f
 
 The bundle orchestrates several MCPs + a proxy layer into one workflow:
 
+```mermaid
+flowchart TB
+  D["Driver — VS Code + Copilot (local 8B) · Claude Code · any frontier model"]
+  D -- "MCP tools" --> FW["Framework MCP (ours)<br/>guardrails + RAG + author/self-heal"]
+  D -- "MCP tools" --> PW["Playwright MCP<br/>explore the app while authoring"]
+  D -- "MCP tools" --> J["Jira<br/>get_jira tool · or Atlassian MCP"]
+  D -. "chat completions (local path)" .-> A["slim-agent-adapter<br/>proxy: tool-filter · slim · /no_think"]
+  A --> LLM["LLM — Qwen3-8B"]
+  FW == "embeds queries + code chunks" ==> EMB["Embeddings — nomic-embed-text<br/><b>REQUIRED for RAG</b>"]
+  subgraph HOST["Local model host — LM Studio or Ollama"]
+    LLM
+    EMB
+  end
+```
+
 | Piece | Type | Role in the journey |
 |---|---|---|
 | **Jira** | built-in **`get_jira`** tool **or** the **Atlassian MCP** | pull the ticket → the requirement |
@@ -111,7 +126,7 @@ Honest scope: this is **not** a frontier coding agent. It's a capable, private, 
 - A local model host — **[LM Studio](https://lmstudio.ai)** (`:1234`) **or [Ollama](https://ollama.com)** (`:11434`). The setup wizard asks which.
 - Models:
   - chat/agent — `qwen/qwen3-8b` (LM Studio) or `qwen3` (Ollama)
-  - embeddings for RAG — `text-embedding-nomic-embed-text-v1.5` (LM Studio) or `nomic-embed-text` (Ollama)
+  - embeddings — `text-embedding-nomic-embed-text-v1.5` (LM Studio) or `nomic-embed-text` (Ollama) — **REQUIRED: RAG retrieval (`retrieve_context`, `check_coverage`, `semantic_search`) does not work without it.** The setup wizard loads/pulls it automatically.
 - A **driver**: VS Code + GitHub Copilot Chat (custom OpenAI-compatible endpoint → the adapter or the host directly), **or** Claude Code, **or** any frontier model.
 - ~24 GB RAM recommended for the local path (works within it — see [Troubleshooting](#troubleshooting)).
 
