@@ -13,17 +13,26 @@ const IGNORE = new Set([
   ".cache",
 ]);
 
-/** Load the framework's TypeScript sources into a ts-morph project. */
+/** Load the framework's TypeScript sources into a ts-morph project (all .ts, ignoring node_modules/dist). */
 export function createProject(root: string): Project {
   const project = new Project({
     compilerOptions: { allowJs: false, skipLibCheck: true },
     skipAddingFilesFromTsConfig: true,
   });
-  project.addSourceFilesAtPaths([
-    path.join(root, "src/**/*.ts"),
-    path.join(root, "tests/**/*.ts"),
-  ]);
+  for (const f of walk(root)) {
+    if (f.endsWith(".ts") && !f.endsWith(".d.ts")) {
+      try { project.addSourceFileAtPath(f); } catch { /* skip unparsable files */ }
+    }
+  }
   return project;
+}
+
+/** A class is treated as a Page Object if it lives in a page-ish folder, is named *Page, or drives locators. */
+function looksLikePageDir(fp: string): boolean {
+  return /(^|\/)(pages?|page[-_]?objects?|po|screens?|components?)(\/|$)/i.test(fp);
+}
+function classDrivesUi(clsText: string): boolean {
+  return /\bLocator\b|page\.locator|getByRole|getByTestId|getByText|getByLabel|this\.page\b/.test(clsText);
 }
 
 /** Recursively list files under a directory, skipping ignored folders. */
@@ -52,8 +61,13 @@ export interface PageObjectInfo {
 export function listPageObjects(project: Project, root: string): PageObjectInfo[] {
   const result: PageObjectInfo[] = [];
   for (const sf of project.getSourceFiles()) {
-    if (!sf.getFilePath().includes("/pages/")) continue;
+    const fp = sf.getFilePath();
+    if (/\.(spec|test)\.ts$/.test(fp)) continue; // skip test files
+    const inPageDir = looksLikePageDir(fp);
     for (const cls of sf.getClasses()) {
+      const name = cls.getName() ?? "";
+      const isPage = inPageDir || /page$|screen$|component$/i.test(name) || classDrivesUi(cls.getText());
+      if (!isPage) continue;
       const methods = cls
         .getInstanceMethods()
         .filter((m) => m.getScope() !== Scope.Private)
@@ -83,7 +97,7 @@ export interface TestInfo {
 
 /** List spec files with their describe blocks, test titles, and @tags. */
 export function listTests(root: string): TestInfo[] {
-  const files = walk(path.join(root, "tests")).filter((f) => f.endsWith(".spec.ts"));
+  const files = walk(root).filter((f) => /\.(spec|test)\.ts$/.test(f));
   return files.map((f) => {
     const textBody = fs.readFileSync(f, "utf8");
     const suites = [...textBody.matchAll(/describe\(\s*['"`]([^'"`]+)['"`]/g)].map((m) => m[1]);
@@ -187,7 +201,7 @@ function overviewFlowchart(project: Project, root: string): string {
     if (file.includes("/data/")) return "Data";
     return "Other";
   };
-  const isProjectFile = (p: string) => p.includes("/src/") || p.includes("/tests/");
+  const isProjectFile = (p: string) => !p.includes("/node_modules/") && !p.includes("/dist/");
   const nodes = new Map<string, { id: string; label: string; group: string; base: boolean }>();
   const edges = new Set<string>();
 
@@ -266,15 +280,41 @@ export function architecture(project: Project, root: string, scope: "overview" |
   return scope === "pages" ? pagesClassDiagram(project) : overviewFlowchart(project, root);
 }
 
-/** Extract the fixture names declared in the framework's test-fixtures file. */
+/** Extract fixture names from any file that calls test/base.extend(...). */
 function extractFixtureNames(root: string): string[] {
-  const candidates = walk(path.join(root, "src")).filter((f) => /fixtures?.*\.ts$/i.test(f));
   const names: string[] = [];
-  for (const f of candidates) {
+  for (const f of walk(root)) {
+    if (!/\.ts$/.test(f) || /\.d\.ts$/.test(f)) continue;
     const body = fs.readFileSync(f, "utf8");
-    for (const m of body.matchAll(/^\s*(\w+):\s*async\s*\(/gm)) names.push(m[1]);
+    if (!/\.extend\s*[<(]/.test(body)) continue;
+    for (const m of body.matchAll(/(\w+)\s*:\s*async\s*\(/g)) names.push(m[1]);
   }
   return [...new Set(names)];
+}
+
+/** Infer the framework's test-import header from the most common one across specs. */
+function detectImportHeader(root: string): string {
+  const counts = new Map<string, number>();
+  for (const f of walk(root)) {
+    if (!/\.(spec|test)\.ts$/.test(f)) continue;
+    const m = fs.readFileSync(f, "utf8").match(/import\s*\{[^}]*\btest\b[^}]*\}\s*from\s*['"][^'"]+['"]/);
+    if (m) {
+      let line = m[0].replace(/\s+/g, " ").trim();
+      if (!line.endsWith(";")) line += ";";
+      counts.set(line, (counts.get(line) || 0) + 1);
+    }
+  }
+  let best = "import { test, expect } from '@playwright/test';";
+  let n = 0;
+  for (const [line, c] of counts) if (c > n) { best = line; n = c; }
+  return best;
+}
+
+/** Find data files (JSON/TS) under any data-ish directory. */
+function detectDataFiles(root: string): string[] {
+  return walk(root)
+    .filter((f) => /(^|\/)(data|test[-_]?data|testdata)(\/)/i.test(f) && /\.(ts|json)$/.test(f) && !/\.d\.ts$/.test(f))
+    .map((f) => path.relative(root, f));
 }
 
 export interface TestConventions {
@@ -299,35 +339,36 @@ export function getTestConventions(project: Project, root: string): TestConventi
   for (const t of listTests(root)) for (const tc of t.tests) for (const tag of tc.tags) tagSet.add(tag);
   const tags = [...tagSet].sort();
   const fixtures = extractFixtureNames(root);
-  const dataFiles = walk(path.join(root, "src", "data"))
-    .filter((f) => f.endsWith(".ts"))
-    .map((f) => path.relative(root, f));
+  const dataFiles = detectDataFiles(root);
+  const importHeader = detectImportHeader(root);
+  const usesFixtureImport = !/@playwright\/test/.test(importHeader);
+  const poNames = pageObjects.map((p) => p.name);
 
   return {
-    importHeader: "import { test, expect } from '../../src/fixtures/test-fixtures';",
+    importHeader,
     fixtures,
     pageObjects,
     dataFiles,
     tags,
     rules: [
-      "RAG-first: to understand existing code before writing, call retrieve_context with a natural-language query (or code_map for structure) instead of reading whole files — it returns just the relevant, token-budgeted slice, which keeps the local context window focused.",
-      "Import { test, expect } from the framework fixtures ('../../src/fixtures/test-fixtures'); adjust the ../ depth to the spec's folder. Never import from '@playwright/test' directly in a spec.",
-      "Never call raw page.click / page.fill / page.goto in a spec — only page-object methods.",
-      "Access page objects through fixtures (e.g. async ({ loginPage, inventoryPage, cartPage, checkoutPage }) => ...). For a test that should start already logged in, use the { loggedIn } fixture (returns a ready InventoryPage).",
-      `Wrap tests in test.describe('<Suite>', ...) and tag every test with exactly one of: ${tags.join(", ")}.`,
-      "Import reusable data from src/data (users, invalidLogins, products) instead of hard-coding strings.",
-      "Prefer the page objects' own expect* helpers for assertions (e.g. expectLoaded, expectError, expectComplete).",
-      "Place the spec under tests/<area>/<name>.spec.ts and create it with the create_test_file tool.",
-    ],
+      "RAG-first: call retrieve_context (or code_map) to understand existing code before writing, instead of reading whole files — it returns just the relevant, token-budgeted slice, which keeps the local context window focused.",
+      `Import test/expect using THIS framework's header: ${importHeader}  (adjust the ../ depth to your spec's folder).`,
+      poNames.length
+        ? `Use the framework's page objects (${poNames.slice(0, 8).join(", ")}${poNames.length > 8 ? ", …" : ""}) and their methods instead of raw page.click / page.fill / page.goto.`
+        : "Prefer existing helper / page-object classes over raw page.* calls where they exist.",
+      fixtures.length
+        ? `Access shared setup through the existing fixtures (${fixtures.slice(0, 8).join(", ")}) — e.g. async ({ ${fixtures[0]} }) => ...`
+        : (usesFixtureImport ? "Use the framework's custom fixtures rather than the bare @playwright/test." : ""),
+      tags.length ? `Tag tests using the existing vocabulary: ${tags.join(", ")}.` : "",
+      dataFiles.length ? `Import reusable data from: ${dataFiles.slice(0, 6).join(", ")} — don't hard-code values that already exist there.` : "",
+      "Wrap tests in test.describe('<Suite>', ...). Place the spec alongside the existing tests and create it with the create_test_file tool.",
+    ].filter(Boolean),
     template: [
-      "import { test, expect } from '../../src/fixtures/test-fixtures';",
-      "import { products } from '../../src/data/products';",
+      importHeader,
       "",
       "test.describe('<Suite name>', () => {",
-      "  test('<what it verifies> @<tag>', async ({ loggedIn }) => {",
-      "    // Use page-object methods only, e.g.:",
-      "    // await loggedIn.addToCart(products.backpack);",
-      "    // expect(await loggedIn.cartCount()).toBe(1);",
+      `  test('<what it verifies>${tags.length ? " " + tags[0] : ""}', async ({ ${fixtures[0] ?? "page"} }) => {`,
+      "    // Use the framework's page objects / fixtures — avoid raw page.* where a helper exists.",
       "  });",
       "});",
     ].join("\n"),
