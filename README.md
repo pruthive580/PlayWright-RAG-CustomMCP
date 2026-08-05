@@ -41,6 +41,20 @@ You drive it in **plain English** — no need to name the tools; the assistant f
 
 ---
 
+## The MCP stack (how the pieces compose)
+
+The bundle orchestrates several MCPs + a proxy layer into one workflow:
+
+| Piece | Type | Role in the journey |
+|---|---|---|
+| **Jira** | built-in **`get_jira`** tool **or** the **Atlassian MCP** | pull the ticket → the requirement |
+| **Framework MCP** *(ours)* | one MCP server, two hats | **guardrails & rules** — POM conventions, page objects, `get_test_conventions` — **and RAG retrieval** — `retrieve_context`, `check_coverage`, `semantic_search` — plus authoring & self-heal (`create_test_file`, `diagnose_test`) |
+| **Playwright MCP** | official `@playwright/mcp` | explore the real app while authoring (real selectors, not guesses) |
+| **slim-agent-adapter** | a proxy, **not** an MCP | tool-filtering + schema-slimming + `/no_think` so it runs on a small local model; live dashboard |
+| **Model host** | LM Studio **or** Ollama | serves the local LLM **and** the embedding model (`nomic-embed-text`) the RAG engine runs on |
+
+> Two honest clarifications: (1) the **"custom MCP" and the "RAG" are the same server** — `framework-mcp` wears both hats, not two separate MCPs; (2) Jira is **either** our driver-agnostic `get_jira` tool **or** an external Atlassian MCP — you don't need both. The **adapter is a proxy layer**, not an MCP.
+
 ## Architecture
 
 ```mermaid
@@ -94,12 +108,12 @@ Honest scope: this is **not** a frontier coding agent. It's a capable, private, 
 ## Requirements
 
 - **Node.js 18+**
-- **[LM Studio](https://lmstudio.ai)** (local model server on `:1234`)
-- Models (download in LM Studio's *Discover* tab):
-  - `qwen/qwen3-8b` — the chat/agent model
-  - `text-embedding-nomic-embed-text-v1.5` — embeddings for RAG
-- **VS Code** with GitHub Copilot Chat (agent mode + a custom OpenAI-compatible model endpoint)
-- ~24 GB RAM recommended (works within it — see [Troubleshooting](#troubleshooting))
+- A local model host — **[LM Studio](https://lmstudio.ai)** (`:1234`) **or [Ollama](https://ollama.com)** (`:11434`). The setup wizard asks which.
+- Models:
+  - chat/agent — `qwen/qwen3-8b` (LM Studio) or `qwen3` (Ollama)
+  - embeddings for RAG — `text-embedding-nomic-embed-text-v1.5` (LM Studio) or `nomic-embed-text` (Ollama)
+- A **driver**: VS Code + GitHub Copilot Chat (custom OpenAI-compatible endpoint → the adapter or the host directly), **or** Claude Code, **or** any frontier model.
+- ~24 GB RAM recommended for the local path (works within it — see [Troubleshooting](#troubleshooting)).
 
 ---
 
@@ -203,6 +217,36 @@ The Playwright MCP is **present but off by default** — commented out in `.vsco
 2. Reload the window, or Command Palette → **"MCP: List Servers"** → **Start** `playwright`.
 
 Now the two MCPs compose: **Playwright explores the real app** (real selectors and flow) while the **custom MCP enforces your POM standard** as the spec is written. Stop it again afterward to reclaim memory.
+
+## Using Claude Code (or any frontier terminal agent) as the driver
+
+Claude Code drives the **same MCP tools** — and it brings its own model, so there's **no model/endpoint to configure**. Register the MCP with a project `.mcp.json` at the repo root (note: Claude Code uses the **`mcpServers`** key; VS Code uses `servers`):
+
+```json
+{
+  "mcpServers": {
+    "framework": {
+      "command": "node",
+      "args": ["/abs/path/framework-mcp/dist/index.js"],
+      "env": { "FRAMEWORK_ROOT": "/abs/path/your-playwright-repo", "FRAMEWORK_ONLY": "1" }
+    },
+    "playwright": {
+      "command": "node",
+      "args": ["/abs/path/your-playwright-repo/node_modules/@playwright/mcp/cli.js"]
+    }
+  }
+}
+```
+
+The **setup wizard writes this `.mcp.json` for you**. Then:
+
+```bash
+cd <repo root> && claude        # approve the MCP servers on first run
+```
+…and ask in plain English — no tool names needed:
+> *"Take Jira ABC-123 — is it already tested? If so run it; if not, write it and make it pass."*
+
+Add Jira by putting `JIRA_BASE_URL` / `JIRA_EMAIL` / `JIRA_API_TOKEN` in the `framework` server's `env`. Prefer the CLI? `claude mcp add framework -- node /abs/path/framework-mcp/dist/index.js` (then set the env vars).
 
 ## Usage
 

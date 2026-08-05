@@ -75,8 +75,17 @@ async function main() {
     ctx = Number(await ask("Context length:", "32768")) || 32768;
   }
   const embModel = "text-embedding-nomic-embed-text-v1.5";
-  const base = useAdapter ? "http://localhost:1235" : "http://localhost:1234";
-  ok(`Model ${model} · context ${ctx} · adapter ${useAdapter ? "ON" : "OFF"} · endpoint ${base}`);
+
+  // ── Backend: where the local model is hosted ──────────────────────────────
+  say(`\n${C.b}3b) Local model backend${C.x}`);
+  say(`  ${C.d}1) LM Studio  ${C.g}(default)${C.x}`);
+  say(`  ${C.d}2) Ollama${C.x}`);
+  const backend = (await ask("Choose 1/2:", "1")) === "2" ? "ollama" : "lmstudio";
+  const directBase = backend === "ollama" ? "http://localhost:11434" : "http://localhost:1234";
+  const base = useAdapter ? "http://localhost:1235" : directBase;
+  const fwEnv = { FRAMEWORK_ROOT: projectPath, FRAMEWORK_ONLY: "1" };
+  if (backend === "ollama") { fwEnv.LMSTUDIO_EMBED_URL = "http://localhost:11434/v1/embeddings"; fwEnv.EMBED_MODEL = "nomic-embed-text"; }
+  ok(`Model ${model} · ${backend} · context ${ctx} · adapter ${useAdapter ? "ON" : "OFF"} · endpoint ${base}`);
 
   const confirm = await ask("\nProceed with build + setup? (y/n):", "y");
   if (!isYes(confirm)) { warn("Aborted."); rl.close(); return; }
@@ -87,9 +96,17 @@ async function main() {
   run("npm", ["install", "--no-audit", "--no-fund"], { cwd: mcpDir }) ? ok("deps installed") : bad("npm install failed");
   run("npm", ["run", "build"], { cwd: mcpDir }) ? ok("built dist/") : bad("build failed");
 
-  // ── Load models via LM Studio ─────────────────────────────────────────────
-  say(`\n${C.b}5) Local models (LM Studio)${C.x}`);
-  if (lms) {
+  // ── Load / prepare the model ──────────────────────────────────────────────
+  say(`\n${C.b}5) Local model (${backend})${C.x}`);
+  if (backend === "ollama") {
+    if (which("ollama")) {
+      const have = out("ollama", ["list"]) || "";
+      if (!have.includes(model.split("/").pop().split(":")[0])) { warn(`pulling ${model} …`); run("ollama", ["pull", model]); } else ok(`Ollama has ${model}`);
+      if (!have.includes("nomic-embed-text")) { warn("pulling nomic-embed-text (for RAG embeddings) …"); run("ollama", ["pull", "nomic-embed-text"]); } else ok("Ollama has nomic-embed-text");
+    } else {
+      warn("Ollama CLI not found. Install Ollama, then: ollama pull " + model + " && ollama pull nomic-embed-text");
+    }
+  } else if (lms) {
     run(lms, ["server", "start"]);
     const listed = out(lms, ["ls"]) || "";
     for (const m of [model, embModel]) {
@@ -98,8 +115,7 @@ async function main() {
         await ask("Press Enter when downloaded (or to skip):", "");
       }
     }
-    const loadArgs = [model, "-c", String(ctx), "--parallel", "1", "--gpu", "max"];
-    run(lms, ["load", ...loadArgs]) ? ok(`loaded ${model} @ ${ctx}`) : warn(`could not load ${model} (download it in LM Studio first)`);
+    run(lms, ["load", model, "-c", String(ctx), "--parallel", "1", "--gpu", "max"]) ? ok(`loaded ${model} @ ${ctx}`) : warn(`could not load ${model} (download it in LM Studio first)`);
     run(lms, ["load", embModel]) ? ok(`loaded embeddings ${embModel}`) : warn("could not load embedding model");
   } else {
     warn("Skipping model load (no lms CLI). Install LM Studio, then load:");
@@ -122,7 +138,7 @@ async function main() {
       "type": "stdio",
       "command": ${q(NODE)},
       "args": [${q(path.join(mcpDir, "dist", "index.js"))}],
-      "env": { "FRAMEWORK_ROOT": ${q(projectPath)}, "FRAMEWORK_ONLY": "1" }
+      "env": ${JSON.stringify(fwEnv)}
     }
     // ,"playwright": {
     //   "type": "stdio",
@@ -136,6 +152,16 @@ async function main() {
   fs.writeFileSync(path.join(HERE, ".vscode", "mcp.json"), mcpText);
   ok(".vscode/mcp.json (open the repo root in VS Code, then MCP: List Servers → framework → Start)");
 
+  // Claude Code / any frontier terminal agent: registers the same tools (it brings its own model).
+  const claudeMcp = {
+    mcpServers: {
+      framework: { command: NODE, args: [path.join(mcpDir, "dist", "index.js")], env: fwEnv },
+      playwright: { command: NODE, args: [pwCli] },
+    },
+  };
+  fs.writeFileSync(path.join(HERE, ".mcp.json"), JSON.stringify(claudeMcp, null, 2));
+  ok(".mcp.json for Claude Code — run `claude` in the repo root (both MCPs on; no model config needed)");
+
   const gen = path.join(HERE, "generated");
   fs.mkdirSync(gen, { recursive: true });
   const modelCfg = { id: model, name: `${model} (local${useAdapter ? ", via adapter" : ""})`, url: `${base}/v1/chat/completions`, toolCalling: true, vision: false, maxInputTokens: Math.max(8000, ctx - 6000), maxOutputTokens: 4096 };
@@ -145,7 +171,8 @@ async function main() {
   let adapterCmd = "";
   if (useAdapter) {
     const overrides = path.join(HERE, "slim-agent-adapter", "overrides.example.json");
-    adapterCmd = `TOOL_FILTER=1 TOOL_FILTER_KEEP='^mcp_' TOOL_DENY='create_new_workspace|new_workspace' OVERRIDES='${overrides}' ${NODE} '${path.join(HERE, "slim-agent-adapter", "index.mjs")}'`;
+    const upstreamEnv = backend === "ollama" ? "UPSTREAM=http://localhost:11434 " : "";
+    adapterCmd = `${upstreamEnv}TOOL_FILTER=1 TOOL_FILTER_KEEP='^mcp_' TOOL_DENY='create_new_workspace|new_workspace' OVERRIDES='${overrides}' ${NODE} '${path.join(HERE, "slim-agent-adapter", "index.mjs")}'`;
     const sh = `#!/usr/bin/env bash\n# Start the slim-agent-adapter (:1235). Dashboard: http://localhost:1235/dashboard\n${adapterCmd}\n`;
     fs.writeFileSync(path.join(gen, "start-adapter.sh"), sh, { mode: 0o755 });
     ok("generated/start-adapter.sh");
@@ -155,11 +182,12 @@ async function main() {
   say(`\n${C.g}${C.b}Setup complete.${C.x} Next steps:\n`);
   let n = 1;
   if (useAdapter) { say(`  ${n++}. Start the adapter:  ${C.c}bash generated/start-adapter.sh${C.x}  ${C.d}(dashboard: http://localhost:1235/dashboard)${C.x}`); }
-  else { say(`  ${n++}. Adapter is OFF — VS Code talks to LM Studio (:1234) directly.`); }
+  else { say(`  ${n++}. Adapter is OFF — VS Code talks to ${backend} (${directBase}) directly.`); }
   say(`  ${n++}. In VS Code settings, set  ${C.c}"chat.byokUtilityModelDefault": "mainAgent"${C.x}`);
   say(`  ${n++}. Copilot → Manage Models → add the OpenAI-compatible model from  ${C.c}generated/vscode-model.json${C.x}`);
   say(`  ${n++}. Open ${C.c}${HERE}${C.x} in VS Code → Command Palette → "MCP: List Servers" → ${C.c}framework${C.x} → Start`);
-  say(`  ${n++}. Agent mode, pick the local model, try:  ${C.c}"How do we log in the standard user?"${C.x}\n`);
+  say(`  ${n++}. Agent mode, pick the local model, try:  ${C.c}"How do we log in the standard user?"${C.x}`);
+  say(`\n  ${C.d}Prefer a terminal / frontier driver? Run ${C.c}claude${C.d} in the repo root — .mcp.json loads both MCPs, no model config needed.${C.x}\n`);
   rl.close();
 }
 
