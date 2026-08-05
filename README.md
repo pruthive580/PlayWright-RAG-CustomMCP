@@ -152,6 +152,27 @@ Also set `"chat.byokUtilityModelDefault": "mainAgent"` in VS Code settings so Co
 
 ---
 
+## Jira integration (optional)
+
+`get_jira` turns a ticket into the requirement that drives coverage-check and authoring — over REST with **your own token**, so it works with any driver (local 8B, Claude Code, any frontier model) and nothing goes through a cloud LLM.
+
+1. Create a Jira API token → https://id.atlassian.com/manage-profile/security/api-tokens
+2. Add these to the `framework` server's `env` in your MCP config (`.vscode/mcp.json` and/or Claude Code's `.mcp.json`) — **put the token in the file, never in chat:**
+   ```json
+   "env": {
+     "FRAMEWORK_ROOT": "…",
+     "FRAMEWORK_ONLY": "1",
+     "JIRA_BASE_URL": "https://yourco.atlassian.net",
+     "JIRA_EMAIL": "you@yourco.com",
+     "JIRA_API_TOKEN": "<your-api-token>"
+   }
+   ```
+   Jira **Server/Data Center**: also set `"JIRA_API_VERSION": "2"`.
+3. Restart the MCP server. Now any driver can act on a real ticket in plain English:
+   > *"Take Jira ABC-123 — check if it's already tested; if so run it, otherwise write it and make it pass."*
+
+The assistant will fetch the issue, check coverage, **ask which environment to run against**, and either run the existing cases or author + verify a new one — all in your framework's conventions.
+
 ## Usage
 
 In Copilot **Agent mode** (model = your local Qwen3-8B), try:
