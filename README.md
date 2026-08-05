@@ -177,7 +177,7 @@ Generation & repair: `create_test_file` (POM-correct), `write_architecture_doc`,
 
 The retrieval upgrade in one line: **AST-aware chunking** (whole methods/classes/tests, not line fragments) → **hybrid ranking** → **MMR** → **token budget**. Validated **28/28** (see `framework-mcp/VALIDATION.md`); retrieval quality **hit@6 = 100%, MRR 0.80** on the sample (`framework-mcp/test/eval-retrieval.mjs`).
 
-**Framework-agnostic:** point `FRAMEWORK_ROOT` at *your own* Playwright TS repo — the MCP auto-detects page objects, the import header, fixtures, tags, and data files (verified on 5 real OSS frameworks).
+**Framework-agnostic:** point `FRAMEWORK_ROOT` at *your own* Playwright TS repo — the MCP auto-detects page objects, the import header, fixtures, tags, and data files — **verified on 21 real OSS frameworks, 0 crashes** (see [`framework-mcp/REALWORLD-VALIDATION.md`](framework-mcp/REALWORLD-VALIDATION.md)).
 
 ### `slim-agent-adapter` — the overhead cutter
 
