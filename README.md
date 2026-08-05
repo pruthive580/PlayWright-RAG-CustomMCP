@@ -1,10 +1,32 @@
 # PlayWright · RAG · Custom MCP · Adapter
 
-**A framework-aware AI coding assistant that runs _fully local_ on a 24 GB laptop.**
+**A full-stack, plug-in QA utility that takes a Jira ticket to a passing test — fully local.**
 
-> Made GitHub Copilot's **agent mode** run well on a fully local **Qwen3-8B (32K)** on a **24 GB Apple-Silicon** machine — by cutting per-turn **tool/prompt overhead** with a model-agnostic adapter and feeding only **relevant context** through a RAG engine. **No cloud, no API keys.**
+> Give it a **Jira ID**. It fetches the ticket, checks whether existing tests already cover it, and then either **runs them against the environment you choose** or **authors a brand-new, framework-standard Playwright test and self-heals it until it passes** — driven by a local model on a 24 GB laptop (or Claude Code, or any frontier model). **No cloud, no API keys, nothing leaves your machine.**
 
-Most "run AI coding locally" setups die not because the model is bad, but because the **tool payload + context overwhelm** small models on modest hardware. This bundle solves *both ends at once* — shrink what's **sent** each turn, and feed only what's **relevant** — so a small local model punches well above its weight.
+Under the hood, three pieces work together:
+- a **custom MCP context engine** (RAG over *your* framework) that keeps every generated test in *your* page-object conventions;
+- the official **Playwright MCP** to explore the real app while authoring (real selectors, not hallucinations);
+- a **zero-dependency token-slimming adapter** that filters the per-turn tool payload so agent mode is fast enough on modest hardware.
+
+It's **driver-agnostic** — the same tools work whether the brain is a local LLM (LM Studio + the adapter), **Claude Code**, or any frontier model. Clone it, run one setup wizard, and plug it into your Playwright + TypeScript repo.
+
+## The end-to-end journey
+
+```mermaid
+flowchart LR
+  jira["Jira ID<br/>(or plain English)"] --> fetch["get_jira<br/>fetch requirement"]
+  fetch --> cov{"check_coverage<br/>already tested?"}
+  cov -->|covered| ask["ask which<br/>environment"] --> run["run_test / diagnose_test<br/>(env-aware)"]
+  cov -->|not covered| explore["explore the app<br/>(Playwright MCP)"] --> author["create_test_file<br/>framework-standard POM"] --> heal["diagnose_test<br/>fix → rerun until green"]
+```
+
+1. **Requirement in** — a Jira ID (`get_jira`) or plain English.
+2. **Coverage check** (`check_coverage`) — related tests + a confidence verdict for you to confirm.
+3. **Already covered?** it **asks which environment** to target, then runs the cases (env-aware).
+4. **Not covered?** it explores the app with the Playwright MCP, authors a POM-correct spec in *your* conventions, then **self-heals** — `diagnose_test` → fix → rerun **until the test passes**.
+
+You drive it in **plain English** — no need to name the tools; the assistant follows the workflow. Runs on Qwen3-8B @ 32K on a 24 GB machine (**validated on 166 real Playwright repos, 0 crashes**), and just as well on Claude Code or any frontier model.
 
 ---
 
@@ -172,6 +194,15 @@ Also set `"chat.byokUtilityModelDefault": "mainAgent"` in VS Code settings so Co
    > *"Take Jira ABC-123 — check if it's already tested; if so run it, otherwise write it and make it pass."*
 
 The assistant will fetch the issue, check coverage, **ask which environment to run against**, and either run the existing cases or author + verify a new one — all in your framework's conventions.
+
+## Enabling the Playwright MCP (for authoring)
+
+The Playwright MCP is **present but off by default** — commented out in `.vscode/mcp.json` (and Claude Code's `.mcp.json`) to keep the tool load light on modest hardware. Turn it on only when you want browser-driven authoring:
+
+1. Uncomment the `playwright` block in the config.
+2. Reload the window, or Command Palette → **"MCP: List Servers"** → **Start** `playwright`.
+
+Now the two MCPs compose: **Playwright explores the real app** (real selectors and flow) while the **custom MCP enforces your POM standard** as the spec is written. Stop it again afterward to reclaim memory.
 
 ## Usage
 
