@@ -2,15 +2,17 @@
 
 The framework-mcp analysis layer is **framework-agnostic**: point `FRAMEWORK_ROOT` at any
 Playwright + TypeScript repo and it auto-detects page objects, the import header, fixtures,
-tags, and data files. To prove that (not just claim it), it was run against **21 diverse
-open-source Playwright frameworks** — different folder layouts, fixture styles, and import
-conventions.
+tags, and data files. To prove that (not just claim it), it was run against **166 open-source Playwright repos**
+harvested from GitHub — every kind of folder layout, fixture style, and import convention.
 
-**Result: 0 crashes. Page objects detected on 17/21; tests on 18/21. Every non-detection is
-legitimate** (a JS-only repo, a CLI tool, a Cucumber repo, or a repo with no page-object
-classes) — there were **no false negatives on an actual TS Page-Object framework.**
+**Result at scale (166 repos): 0 crashes.** Of the 130 repos that actually contain Playwright
+specs, **tests were detected in 121 (93%)** and **page objects in 95 (73%)** — the remainder are
+libraries, scraping/CLI/MCP tools, JS-only repos (`ts=0`), or Cucumber/BDD suites that
+legitimately have no TypeScript page-object classes. Across the corpus the MCP correctly inferred
+**43 distinct import-header conventions** and surfaced **7,324 tests** and **710 page objects**,
+with **no false negative on an actual TS Page-Object framework.**
 
-## Results
+## Representative sample (21 frameworks, in detail)
 
 | Repo | .ts | Page objects | Tests | Fixtures | Detected import header |
 |---|--:|--:|--:|--:|---|
