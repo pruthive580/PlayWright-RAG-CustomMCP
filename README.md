@@ -1,241 +1,213 @@
-# PlayWright-RAG-CustomMCP
+# PlayWright · RAG · Custom MCP · Adapter
 
-Turn your Playwright test framework into something an LLM can **understand, explain, search, and extend** — running **fully locally** (no cloud, no API keys) via [LM Studio](https://lmstudio.ai), usable from VS Code / Cline / any MCP client.
+**A framework-aware AI coding assistant that runs _fully local_ on a 24 GB laptop.**
 
-It combines two things:
+> Made GitHub Copilot's **agent mode** run well on a fully local **Qwen3-8B (32K)** on a **24 GB Apple-Silicon** machine — by cutting per-turn **tool/prompt overhead** with a model-agnostic adapter and feeding only **relevant context** through a RAG engine. **No cloud, no API keys.**
 
-- a **Custom MCP server** that gives the model deep, structured knowledge of *your* framework, and
-- a **local RAG** layer so anyone can ask questions about the framework in plain English.
-
-Browser automation is provided by the official **[`@playwright/mcp`](https://github.com/microsoft/playwright-mcp)**, so you also get exact Playwright-MCP capabilities alongside the custom layer.
+Most "run AI coding locally" setups die not because the model is bad, but because the **tool payload + context overwhelm** small models on modest hardware. This bundle solves *both ends at once* — shrink what's **sent** each turn, and feed only what's **relevant** — so a small local model punches well above its weight.
 
 ---
 
-## What you get
+## What's in the box
 
-### 🧠 The Custom MCP — *your framework's brain*
-
-Out of the box, an LLM knows *generic* Playwright. It does **not** know your page objects, your fixtures, or your team's conventions — so it writes throwaway `page.click(...)` scripts. The custom MCP fixes that. It lets the model:
-
-- **Understand the framework** — list every Page Object and its methods, see existing tests, read any file, and get an auto-generated **architecture diagram**.
-- **Write tests in *your* pattern** — because it knows your fixtures, page-object methods, tags, and data files, generated specs use `InventoryPage.addToCart()` + the `loggedIn` fixture + a proper `@tag`, **not** raw `page.*`.
-- **Run tests** — execute a spec and report results, closing the author→verify loop.
-- **Drive a real browser** — via the bundled official Playwright MCP (navigate, snapshot, click, type, hover, tabs, network, …).
-
-**Who it helps:** a new joiner who needs to grok the framework fast; an engineer who wants a first-draft test that already follows house style; anyone documenting or reviewing the suite.
-
-### 🔎 The RAG — *ask your framework anything*
-
-Exact search (grep) only works if you know the keyword. RAG lets you ask in plain English and get the right place in the code — even when you don't know what it's called.
-
-- **Natural-language questions** — *"where do we handle locked-out logins?"*, *"how is the cart badge counted?"* → returns the most relevant code/doc chunks with `file:line` and a similarity score.
-- **Grounded answers** — the model reasons over *your real source*, not guesses, so explanations and generated tests stay accurate.
-- **100% local & private** — chunks are embedded with a local model (`nomic-embed-text` via LM Studio); nothing leaves your machine.
-
-**Who it helps:** anyone onboarding to an unfamiliar framework, or hunting for "where does X happen" without spelunking the repo.
-
-> **Exact + semantic, together:** `search_code`/`list_page_objects` for precise symbol lookups, `semantic_search` for fuzzy intent. The model picks the right one per question.
+| Component | What it is |
+|---|---|
+| 🧠 **`framework-mcp`** | A **Custom MCP server + context engine**. Gives the model deep, structured knowledge of *your* Playwright framework (page objects, fixtures, conventions), generates tests in *your* pattern, draws architecture diagrams from real static analysis (ts-morph), and — the headline — a **RAG context engine** that returns a tight, token-budgeted slice of the codebase per question. |
+| ⚡ **`slim-agent-adapter`** | A **zero-dependency, model-agnostic** OpenAI-compatible proxy. Filters the tool payload down to what the current prompt needs, slims tool schemas, disables Qwen3 "thinking", and ships a **live dashboard**. This is what makes agent mode usable on modest hardware. |
+| 🎭 **`playwright-pom-framework`** | A **sample Playwright + TypeScript Page Object Model** framework (SauceDemo) — the system-under-test the MCP understands. 7 spec files, 18 tests, smoke → complex. |
+| 🌐 **Playwright MCP** *(optional)* | The official [`@playwright/mcp`](https://github.com/microsoft/playwright-mcp) for live browser automation. **Off by default** to keep the tool load light; enable it only when you need a real browser. |
 
 ---
 
 ## Architecture
 
 ```mermaid
-flowchart LR
-  subgraph Client["VS Code / Cline / MCP client"]
-    LLM["Qwen3 (local, via LM Studio)"]
+flowchart TB
+  subgraph vscode["VS Code · Copilot Agent mode"]
+    chat["Chat / Agent"]
   end
-  LLM -->|MCP| PW["@playwright/mcp<br/>24 browser tools"]
-  LLM -->|MCP| FW["framework-mcp<br/>11 tools: knowledge + RAG + gen"]
-  PW --> BR[("Chromium")]
-  FW --> REPO[("Your Playwright framework")]
-  FW -.embeds.-> EMB["nomic-embed-text<br/>(local)"]
-  BR --> APP[("Web app under test")]
+
+  subgraph adapter["slim-agent-adapter  :1235  (zero-dep proxy)"]
+    filt["prompt-driven tool filter<br/>keep MCP · deny scaffolders"]
+    slim["schema slimming · /no_think"]
+    dash["live dashboard /dashboard"]
+  end
+
+  subgraph lms["LM Studio  :1234  (fully local)"]
+    llm["Qwen3-8B · 32K context"]
+    emb["nomic-embed-text (embeddings)"]
+  end
+
+  subgraph mcp["framework-mcp  (context engine · stdio)"]
+    tools["13 tools: retrieve_context, code_map,<br/>get_architecture, create_test_file, run_test…"]
+    rag["AST chunks → hybrid rank → MMR → token budget"]
+  end
+
+  fw["playwright-pom-framework<br/>(page objects · fixtures · tests)"]
+
+  chat -- "chat completions" --> filt --> slim --> llm
+  emb --- rag
+  chat -- "MCP (tools)" --> tools
+  tools --- rag
+  rag -- "reads / analyses" --> fw
+  llm -. "picks a tool" .-> tools
 ```
 
----
-
-## Tools
-
-### `framework-mcp` (this repo, 11 tools)
-
-| Tool | What it does |
-|------|--------------|
-| `list_page_objects` | Page Object classes + public methods + locators (`ts-morph`) |
-| `list_tests` | Spec files, titles, `@tags` |
-| `get_test_conventions` | **Pattern engine** — import header, fixtures, method catalog, tags, rules, template |
-| `search_code` / `read_file` | Exact grep + read (path-guarded) |
-| `semantic_search` | **RAG** — natural-language search via local embeddings |
-| `build_rag_index` | (Re)build the local embedding index |
-| `get_architecture` | Mermaid diagram (`overview` / `pages`) |
-| `write_architecture_doc` | Generate + write a complete `ARCHITECTURE.md` |
-| `create_test_file` | Write a new `*.spec.ts` into `tests/` |
-| `run_test` | Run Playwright and return results |
-
-Env config: `FRAMEWORK_ROOT` (project to analyse), `FRAMEWORK_ONLY=1` (drop built-in browser tools when composed with Playwright MCP), `MCP_HEADLESS=1`, `EMBED_MODEL` / `LMSTUDIO_EMBED_URL` (RAG endpoint; defaults to `text-embedding-nomic-embed-text-v1.5` on `http://localhost:1234/v1/embeddings`).
-
-### `@playwright/mcp` (official, 24 tools)
-
-`browser_navigate`, `browser_snapshot`, `browser_click`, `browser_type`, `browser_hover`, `browser_drag`, `browser_select_option`, `browser_tabs`, `browser_handle_dialog`, `browser_file_upload`, `browser_network_requests`, `browser_evaluate`, `browser_wait_for`, … — exact, Microsoft-maintained.
+**The flow:** VS Code sends each turn to the **adapter**, which trims the tool payload and forwards to **Qwen3-8B** in LM Studio. When the model calls a tool, VS Code routes it to **framework-mcp**, whose **context engine** (built on local embeddings) returns just the relevant, budgeted slice of the framework — so 32K of context goes a long way.
 
 ---
 
-## Prerequisites
+## Why it's special
 
-- **Node.js 18+** and **npm**
-- **[LM Studio](https://lmstudio.ai)** with:
-  - a **tool-calling chat model** — **Qwen3** recommended (`qwen/qwen3-8b` or `qwen/qwen3-14b`). *The model must emit structured tool calls; some coder models emit them as plain text the client can't run.*
-  - an **embedding model** — `text-embedding-nomic-embed-text-v1.5` (for RAG)
-- macOS / Linux / Windows
+- **It runs on a potato.** M-series / 24 GB unified memory / Qwen3-8B / 32K — and it's *stable* (the 14B repeatedly crashed the machine; the 8B + these two layers does not).
+- **It solves the real killer** — not model quality, but the **token/tool overload** every local setup hits and no one packages a fix for.
+- **Framework-aware, not generic** — writes tests in *your* POM conventions; diagrams come from *real* static analysis, not hallucination.
+- **Model-agnostic + reusable** — the adapter works with any OpenAI-compatible local model; the context-engine pattern works on any codebase.
+- **Observable** — the dashboard shows exactly what's optimized per request, which local setups never expose.
+
+Honest scope: this is **not** a frontier coding agent. It's a capable, private, framework-aware assistant that actually works on hardware you already own.
+
+---
+
+## Requirements
+
+- **Node.js 18+**
+- **[LM Studio](https://lmstudio.ai)** (local model server on `:1234`)
+- Models (download in LM Studio's *Discover* tab):
+  - `qwen/qwen3-8b` — the chat/agent model
+  - `text-embedding-nomic-embed-text-v1.5` — embeddings for RAG
+- **VS Code** with GitHub Copilot Chat (agent mode + a custom OpenAI-compatible model endpoint)
+- ~24 GB RAM recommended (works within it — see [Troubleshooting](#troubleshooting))
 
 ---
 
 ## Setup
 
-### 1. Build
-
 ```bash
-cd framework-mcp && npm install && npm run build
-cd ../playwright-pom-framework && npm install && npx playwright install chromium
-npm install -D @playwright/mcp            # official Playwright MCP
+git clone https://github.com/pruthive580/PlayWright-RAG-CustomMCP.git
+cd PlayWright-RAG-CustomMCP
 ```
 
-### 2. Start the local models (LM Studio)
-
+**1. Build the MCP (context engine)**
 ```bash
-lms server start
-lms load qwen/qwen3-14b -c 40960 --gpu max            # chat model, big context for the ~35-tool prompt
-lms load text-embedding-nomic-embed-text-v1.5 -y      # embedding model for RAG
+cd framework-mcp
+npm install
+npm run build          # produces dist/index.js
+cd ..
 ```
 
-### 3. Register both MCP servers
-
-**VS Code** — `.vscode/mcp.json` in your framework project:
-
-```json
-{
-  "servers": {
-    "playwright": {
-      "type": "stdio",
-      "command": "/usr/local/bin/node",
-      "args": ["<ABS_PATH>/playwright-pom-framework/node_modules/@playwright/mcp/cli.js"]
-    },
-    "framework": {
-      "type": "stdio",
-      "command": "/usr/local/bin/node",
-      "args": ["<ABS_PATH>/framework-mcp/dist/index.js"],
-      "env": { "FRAMEWORK_ROOT": "${workspaceFolder}", "FRAMEWORK_ONLY": "1" }
-    }
-  }
-}
-```
-
-**LM Studio** — `~/.lmstudio/mcp.json` uses the same block under key `mcpServers`. **Cline** — same block in its MCP config.
-
-> Use the **absolute** `node` path (`which node`) — GUI apps launch MCP servers with a minimal `PATH` that often omits `/usr/local/bin`.
-
-### 4. Point your chat client at the local model
-
-- **Cline / Continue** (easiest) → provider **LM Studio** (no API key), pick `qwen/qwen3-14b`. Keep the **standard** system prompt (Cline's compact prompt disables MCP).
-- **VS Code Copilot Chat** → *Manage Models* → custom/OpenAI-compatible endpoint: model **url** `http://localhost:1234/v1/chat/completions` (must be absolute), id `qwen/qwen3-14b`, `toolCalling: true`, `vision: false`, API key = any placeholder.
-
----
-
-## How to use
-
-With a model loaded and both servers running, open your client's **agent mode** and just ask. The model calls the tools for you.
-
-**Understand the framework**
-> "Explain this framework and show its architecture diagram."
-> "What page objects and methods are available?"
-> "Generate the architecture doc." → writes `ARCHITECTURE.md`
-
-**Ask questions (RAG)**
-> "Where do we handle locked-out or invalid logins?"
-> "How is the shopping-cart badge counted?"
-
-**Author a test in your pattern**
-> "Open saucedemo, log in as standard_user, add a backpack to the cart, then write a test for it in this framework's Page Object style and run it."
-
-That last one runs the full pipeline: **Playwright MCP** drives the browser → **framework-mcp** reads conventions + page objects → writes a POM-style spec → `run_test` executes it.
-
-> First `semantic_search` builds the index automatically. After big code changes, ask it to **"rebuild the RAG index."**
-
----
-
-## Adapt it to *your* framework
-
-This is designed to drop onto any Playwright POM project. Two levels:
-
-### Level 1 — just point it (works if you follow common POM conventions)
-Set `FRAMEWORK_ROOT` to your repo (the `env` in the MCP config). No code changes needed if your repo has:
-- page objects in files under a `pages/` directory,
-- a fixtures file whose name contains "fixture",
-- specs in `tests/**/*.spec.ts` with `@word` tags in titles,
-- shared data in `src/data`.
-
-Then rebuild the index once (call `build_rag_index` / `semantic_search`).
-
-### Level 2 — adjust the assumptions (if your layout differs)
-Everything lives in **`framework-mcp/src/analysis.ts`** — edit these spots, then `npm run build`:
-
-| If your… | Edit |
-|---|---|
-| Page objects aren't under `/pages/` | the `.includes("/pages/")` filter in `listPageObjects` and the diagram functions |
-| Fixtures file / import path differ | the glob in `extractFixtureNames` and the `importHeader` string in `getTestConventions` |
-| Conventions differ (imports, fixtures, tagging) | the `rules` and `template` in `getTestConventions` — write them in your team's words |
-| Specs live elsewhere / different suffix | `listTests` (`tests/` + `.spec.ts`) and the target dir in `createTestFile` |
-| You want RAG over more file types | the `/\.(ts|md)$/` filter in **`framework-mcp/src/rag.ts`** |
-
-Because the model reads `get_test_conventions` before generating, **the single highest-leverage edit is the `rules`/`template`** — describe your house style there and generated tests follow it.
-
----
-
-## Sample framework
-
-A realistic Playwright + TypeScript POM against [SauceDemo](https://www.saucedemo.com), used as the system-under-test and RAG corpus.
-
-| Test type | File | Tag |
-|-----------|------|-----|
-| Smoke / positive auth | `tests/auth/login.spec.ts` | `@smoke` |
-| Data-driven negative | `tests/auth/login.spec.ts` | `@negative` |
-| Functional / state | `tests/inventory/inventory.spec.ts` | `@functional` |
-| End-to-end journey | `tests/e2e/checkout.spec.ts` | `@e2e` |
-
+**2. Install the sample framework (only if you want to run its tests)**
 ```bash
 cd playwright-pom-framework
-npm test            # all tests headless
-npm run report      # open the HTML report
+npm install
+npx playwright install chromium
+cd ..
 ```
+
+**3. Load the models in LM Studio**
+- Start LM Studio → *Developer* tab → **Start Server** (`:1234`)
+- Load `qwen/qwen3-8b` with a **32K** context, single slot:
+  ```bash
+  lms load qwen/qwen3-8b -c 32768 --parallel 1 --gpu max
+  lms load text-embedding-nomic-embed-text-v1.5
+  ```
+  > Tip: LM Studio's `--parallel` defaults to 4, which **quadruples** the KV cache — always pass `--parallel 1` for single-user.
+
+**4. Start the adapter** (recommended flags shown)
+```bash
+cd slim-agent-adapter
+TOOL_FILTER=1 TOOL_FILTER_KEEP='^mcp_' TOOL_DENY='create_new_workspace|new_workspace' \
+  OVERRIDES=./overrides.example.json node index.mjs
+# → slim-agent-adapter on :1235 ; dashboard at http://localhost:1235/dashboard
+```
+
+**5. Point VS Code Copilot at the adapter.** Add a custom model (Copilot → *Manage Models* → OpenAI-compatible):
+```json
+{
+  "id": "qwen/qwen3-8b",
+  "name": "Qwen3 8B (local, via adapter)",
+  "url": "http://localhost:1235/v1/chat/completions",
+  "toolCalling": true,
+  "vision": false,
+  "maxInputTokens": 26000,
+  "maxOutputTokens": 4096
+}
+```
+Also set `"chat.byokUtilityModelDefault": "mainAgent"` in VS Code settings so Copilot uses your one model for everything (no phantom "utility model").
+
+**6. Wire the MCP.** Open the **repo root** in VS Code — `.vscode/mcp.json` is already configured. Command Palette → **"MCP: List Servers"** → `framework` → **Start**. The 13 tools (incl. `retrieve_context`, `code_map`) appear in the 🔧 tools picker.
+
+---
+
+## Usage
+
+In Copilot **Agent mode** (model = your local Qwen3-8B), try:
+
+| Prompt | What happens |
+|---|---|
+| "How do we log in the standard user?" | `retrieve_context` returns a cited ~1K-token pack; the model answers from it |
+| "Give me a code map of the page objects." | `code_map` — a signatures-only skeleton |
+| "Create the architecture of this codebase as a md file." | `write_architecture_doc` → `ARCHITECTURE.md` with Mermaid diagrams |
+| "Write a test that removes an item from the cart." | `retrieve_context` → `get_test_conventions` → `create_test_file` (POM-correct) |
+
+Keep the **dashboard** (`http://localhost:1235/dashboard`) open to watch each request, the tool filtering, and the token savings live.
+
+---
+
+## Components in depth
+
+### `framework-mcp` — the context engine (13 tools)
+
+Understanding: `list_page_objects`, `list_tests`, `get_test_conventions`, `search_code`, `read_file`, `get_architecture`.
+RAG / context: **`retrieve_context`** (hybrid semantic+keyword ranking → MMR de-dup → token-budgeted, cited pack), **`code_map`** (skeleton), `semantic_search`, `build_rag_index`.
+Generation: `create_test_file` (POM-correct), `write_architecture_doc`, `run_test`.
+
+The retrieval upgrade in one line: **AST-aware chunking** (whole methods/classes/tests, not line fragments) → **hybrid ranking** → **MMR** → **token budget**. Validated **28/28** (see `framework-mcp/VALIDATION.md`).
+
+### `slim-agent-adapter` — the overhead cutter
+
+| Feature | Effect |
+|---|---|
+| `TOOL_FILTER=1` | Forward only tools relevant to the current prompt (e.g. 63 → 6–24) |
+| `TOOL_FILTER_KEEP='^mcp_'` | Never drop your MCP tools |
+| `TOOL_DENY='create_new_workspace…'` | Drop hijack-prone built-ins small models misfire on |
+| `OVERRIDES=…` | Curated terse tool descriptions that keep behavioural guidance |
+| `/no_think` (Qwen3) | Disable reasoning latency automatically |
+| `/dashboard` | Live requests, sessions, and a per-request prompt-optimization inspector |
+
+Measured **−25% to −42%** tool tokens per turn. See `slim-agent-adapter/README.md` for all env vars.
 
 ---
 
 ## Troubleshooting
 
-| Symptom | Fix |
-|---|---|
-| MCP server "command not found" | Use the absolute `node` path in the config (GUI PATH is minimal). |
-| `exceeds the available context size` | Reload the chat model with a larger `-c` (e.g. `-c 40960`) — the tool schemas + agent prompt are large. |
-| Model prints the tool call as text instead of running it | Use a model with **structured** tool calling (Qwen3); update the client / LM Studio. |
-| `Failed to parse URL … /v1/chat/completions` (VS Code) | Set the model **url** to the full absolute endpoint. |
-| Cline says MCP unsupported | You're on the compact prompt — switch to the standard prompt. |
-| `Embeddings request failed` | Load the embedding model in LM Studio and ensure the server is running. |
-| Slow responses | Disable Qwen3 "thinking" for agent use; use the 14B with full GPU offload. |
+- **Whole system memory pressure / crash** → you're likely on the 14B. Use **Qwen3-8B**, load with `--parallel 1`, and keep Playwright MCP off unless needed. Close Chrome during heavy runs.
+- **"No lowest priority node found"** (Copilot) → the tool payload doesn't fit `maxInputTokens`. Raise it (given 32K context), and/or trim tools in the 🔧 picker.
+- **Model calls `create_new_workspace` / "needs empty workspace"** → run the adapter with `TOOL_DENY='create_new_workspace|new_workspace'` (default in setup above).
+- **"No models loaded"** after idle → LM Studio auto-unloaded the model; disable idle auto-unload, or just re-send (it reloads).
+- **Context fills fast** → that's the ~60 tool schemas re-sent each turn, not your prompt. Trim the 🔧 picker and lean on `retrieve_context` instead of dumping files.
+- **Mermaid doesn't render** → install the `bierner.markdown-mermaid` VS Code extension, then `Cmd+Shift+V`. (GitHub renders Mermaid natively.)
 
 ---
 
-## Roadmap
+## Repo layout
 
-- **Hybrid ranking** — blend exact (grep/AST) and semantic (RAG) results into one ranked answer.
-- **Step → POM generator** — auto-map recorded browser steps to page-object calls as a first-draft spec.
-- **Multi-framework** — one server instance serving several repos.
+```
+PlayWright-RAG-CustomMCP/
+├── .vscode/mcp.json           # portable MCP config (open the repo root)
+├── framework-mcp/             # custom MCP + RAG context engine (build → dist/)
+│   ├── src/{index,analysis,chunker,context,rag,browser}.ts
+│   └── test/validate.mjs      # 28/28 end-to-end validation harness
+├── slim-agent-adapter/        # zero-dep OpenAI-compatible proxy (node index.mjs)
+├── playwright-pom-framework/  # sample Playwright POM system-under-test
+└── README.md
+```
 
----
+## Credits
 
-## Author
-
-**Gembali Bhargav** — [@pruthive580](https://github.com/pruthive580)
+- Browser automation via the official [`@playwright/mcp`](https://github.com/microsoft/playwright-mcp).
+- Runs locally on [LM Studio](https://lmstudio.ai) with [Qwen3](https://github.com/QwenLM/Qwen3) + `nomic-embed-text`.
 
 ## License
 
-MIT © Gembali Bhargav
+MIT

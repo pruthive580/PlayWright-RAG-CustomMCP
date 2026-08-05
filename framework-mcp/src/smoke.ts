@@ -7,7 +7,7 @@ import * as path from "node:path";
 import { createProject, listPageObjects, listTests, architecture, searchCode } from "./analysis.js";
 
 const ROOT = path.resolve(
-  process.env.FRAMEWORK_ROOT || "/Users/bhargav/playwright-pom-framework",
+  process.env.FRAMEWORK_ROOT || process.argv[2] || process.cwd(),
 );
 
 const project = createProject(ROOT);

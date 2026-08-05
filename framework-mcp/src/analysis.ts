@@ -310,6 +310,7 @@ export function getTestConventions(project: Project, root: string): TestConventi
     dataFiles,
     tags,
     rules: [
+      "RAG-first: to understand existing code before writing, call retrieve_context with a natural-language query (or code_map for structure) instead of reading whole files — it returns just the relevant, token-budgeted slice, which keeps the local context window focused.",
       "Import { test, expect } from the framework fixtures ('../../src/fixtures/test-fixtures'); adjust the ../ depth to the spec's folder. Never import from '@playwright/test' directly in a spec.",
       "Never call raw page.click / page.fill / page.goto in a spec — only page-object methods.",
       "Access page objects through fixtures (e.g. async ({ loginPage, inventoryPage, cartPage, checkoutPage }) => ...). For a test that should start already logged in, use the { loggedIn } fixture (returns a ready InventoryPage).",

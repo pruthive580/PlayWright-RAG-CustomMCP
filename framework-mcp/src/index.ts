@@ -16,10 +16,11 @@ import {
   writeArchitectureDoc,
 } from "./analysis.js";
 import { semanticSearch, buildIndex } from "./rag.js";
+import { retrieveContext, codeMap } from "./context.js";
 import { BrowserSession } from "./browser.js";
 
 const ROOT = path.resolve(
-  process.env.FRAMEWORK_ROOT || process.argv[2] || "/Users/bhargav/playwright-pom-framework",
+  process.env.FRAMEWORK_ROOT || process.argv[2] || process.cwd(),
 );
 const HEADLESS = process.env.MCP_HEADLESS === "1";
 
@@ -121,6 +122,36 @@ server.registerTool(
     inputSchema: {},
   },
   async () => reply(await buildIndex(ROOT)),
+);
+
+server.registerTool(
+  "retrieve_context",
+  {
+    title: "Retrieve Context (RAG pack)",
+    description:
+      "PREFERRED first step for understanding the codebase before you answer a question or write a test. Give a natural-language query; returns a compact, TOKEN-BUDGETED context pack — the most relevant code/test/doc chunks, AST-aware (whole methods/classes, not line fragments), ranked by hybrid semantic+keyword score, de-duplicated (MMR), each with a 'file › symbol [lines]' citation. Use this INSTEAD of reading whole files — it keeps the small local context window focused. Options: tokenBudget (default 2500) and kinds (method/class/function/statement/test/doc).",
+    inputSchema: {
+      query: z.string().describe("Natural-language question about the framework"),
+      tokenBudget: z.number().optional(),
+      kinds: z.array(z.enum(["method", "class", "function", "statement", "test", "doc"])).optional(),
+    },
+  },
+  async ({ query, tokenBudget, kinds }) => {
+    const pack = await retrieveContext(ROOT, query, { tokenBudget, kinds });
+    const header = `Context pack for: "${pack.query}" — ${pack.items.length} chunks, ~${pack.tokensUsed} tokens (budget ${pack.tokenBudget})`;
+    return reply(pack.items.length ? `${header}\n\n${pack.text}` : `${header}\n\n(no relevant chunks found — try rephrasing or a broader query)`);
+  },
+);
+
+server.registerTool(
+  "code_map",
+  {
+    title: "Code Map (skeleton)",
+    description:
+      "Return a signatures-only skeleton of the framework — classes with their public methods, plus exported functions and constants, grouped by file. Cheap BREADTH when you need the shape of the codebase without spending tokens on full source. Optional 'area' substring filter (e.g. 'pages', 'tests', 'data').",
+    inputSchema: { area: z.string().optional() },
+  },
+  async ({ area }) => reply(codeMap(ROOT, { area })),
 );
 
 // ─── Browser automation ─────────────────────────────────────────────────────

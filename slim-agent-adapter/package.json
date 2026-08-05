@@ -1,0 +1,17 @@
+{
+  "name": "slim-agent-adapter",
+  "version": "0.1.0",
+  "description": "Zero-dependency OpenAI-compatible proxy that slims the per-request prompt (tool-schema compression + Qwen3 /no_think) so small local models stay fast on modest hardware.",
+  "type": "module",
+  "bin": {
+    "slim-agent-adapter": "index.mjs"
+  },
+  "scripts": {
+    "start": "node index.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": ["mcp", "llm", "local", "openai", "proxy", "lmstudio", "ollama", "agent", "qa", "test-automation"],
+  "license": "MIT"
+}

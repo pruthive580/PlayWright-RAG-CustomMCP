@@ -1,0 +1,16 @@
+{
+  "_comment": "Curated terse tool descriptions. These are SHORTER than the originals but deliberately KEEP the behavioural guidance (prerequisites, 'use X not Y', constraints) that a model needs to call the tool correctly. Point the adapter at this file with OVERRIDES=./overrides.example.json. Add an entry per tool you want compressed safely; tools without an entry keep their full description (lossless).",
+
+  "get_architecture": "Return a Mermaid diagram from static analysis. scope=overview (dependency flowchart) or pages (class diagram). Return it verbatim.",
+  "get_test_conventions": "The framework's test-writing rules: fixtures, page-object method catalog, tags, import header, template. Call this before generating any test.",
+  "list_page_objects": "List all Page Object classes with their public methods + locators. Call before writing a test so you use methods that exist.",
+  "list_tests": "List spec files with their describe blocks, titles and @tags. Use as examples of the framework's conventions.",
+  "retrieve_context": "PREFERRED first step to understand the codebase. NL query -> a compact token-budgeted context pack: the most relevant AST-aware code/test/doc chunks, hybrid-ranked and de-duplicated, each cited 'file › symbol'. Use INSTEAD of reading whole files. Options: tokenBudget, kinds.",
+  "code_map": "Signatures-only skeleton of the framework (classes + public methods, exported functions/consts, per file). Cheap breadth when you need the shape, not the source. Optional 'area' filter.",
+  "semantic_search": "Natural-language vector search over the framework (local embeddings). For fuzzy 'where/how do we…' questions grep can't answer.",
+  "search_code": "Exact grep over .ts/.json/.md sources. Returns file:line matches.",
+  "read_file": "Read a framework file (path relative to root), optional line range.",
+  "create_test_file": "Write a new Playwright spec into tests/ (path must end .spec.ts). FIRST call list_page_objects + get_test_conventions; the spec MUST use real page-object methods and fixtures, never raw page.* calls.",
+  "write_architecture_doc": "Generate + write a complete ARCHITECTURE.md (both Mermaid diagrams + tables) in one call. Prefer this over composing the doc yourself.",
+  "run_test": "Run Playwright tests. Optional 'path' (a spec) or 'grep'. Returns the result summary."
+}

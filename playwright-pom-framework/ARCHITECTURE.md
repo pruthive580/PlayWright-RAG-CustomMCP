@@ -11,8 +11,11 @@ flowchart TD
     direction TB
     tests_auth_login_spec_ts("login.spec")
     tests_cart_remove_item_spec_ts("remove-item.spec")
+    tests_e2e_checkout_steps_spec_ts("checkout-steps.spec")
     tests_e2e_checkout_spec_ts("checkout.spec")
+    tests_inventory_catalog_spec_ts("catalog.spec")
     tests_inventory_inventory_spec_ts("inventory.spec")
+    tests_smoke_smoke_spec_ts("smoke.spec")
   end
   subgraph Fixtures["Fixtures"]
     direction TB
@@ -45,10 +48,16 @@ flowchart TD
   tests_auth_login_spec_ts --> src_data_users_ts
   tests_cart_remove_item_spec_ts --> src_fixtures_test_fixtures_ts
   tests_cart_remove_item_spec_ts --> src_data_products_ts
+  tests_e2e_checkout_steps_spec_ts --> src_fixtures_test_fixtures_ts
+  tests_e2e_checkout_steps_spec_ts --> src_data_products_ts
   tests_e2e_checkout_spec_ts --> src_fixtures_test_fixtures_ts
   tests_e2e_checkout_spec_ts --> src_data_products_ts
+  tests_inventory_catalog_spec_ts --> src_fixtures_test_fixtures_ts
+  tests_inventory_catalog_spec_ts --> src_data_products_ts
+  tests_inventory_catalog_spec_ts --> src_pages_InventoryPage_ts
   tests_inventory_inventory_spec_ts --> src_fixtures_test_fixtures_ts
   tests_inventory_inventory_spec_ts --> src_data_products_ts
+  tests_smoke_smoke_spec_ts --> src_fixtures_test_fixtures_ts
 
   classDef tests fill:#dbeafe,stroke:#2563eb,color:#1e3a8a;
   classDef fixtures fill:#ede9fe,stroke:#7c3aed,color:#4c1d95;
@@ -65,8 +74,11 @@ flowchart TD
   class src_pages_BasePage_ts base;
   class tests_auth_login_spec_ts tests;
   class tests_cart_remove_item_spec_ts tests;
+  class tests_e2e_checkout_steps_spec_ts tests;
   class tests_e2e_checkout_spec_ts tests;
+  class tests_inventory_catalog_spec_ts tests;
   class tests_inventory_inventory_spec_ts tests;
+  class tests_smoke_smoke_spec_ts tests;
 ```
 
 ## Page Object Model
@@ -125,7 +137,7 @@ classDiagram
 
 | Tag | Count |
 |---|---|
-| @e2e | 1 |
-| @functional | 4 |
+| @e2e | 2 |
+| @functional | 8 |
 | @negative | 1 |
-| @smoke | 1 |
+| @smoke | 2 |

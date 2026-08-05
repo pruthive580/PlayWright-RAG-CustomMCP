@@ -1,51 +1,24 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { walk } from "./analysis.js";
+import { chunkFileAst, CtxChunk } from "./chunker.js";
 
 /**
- * Local vector RAG over the framework's source. Chunks .ts/.md files, embeds
- * each chunk with LM Studio's local embedding model, and answers natural-language
- * queries by cosine similarity. Fully offline — no external services.
+ * Local vector RAG over the framework's source. Chunks .ts/.md files (AST-aware,
+ * see chunker.ts), embeds each chunk with LM Studio's local embedding model, and
+ * answers natural-language queries by similarity. Fully offline — no external
+ * services. The richer retrieval (hybrid + MMR + token budget) lives in context.ts.
  */
-
 const EMB_URL = process.env.LMSTUDIO_EMBED_URL || "http://localhost:1234/v1/embeddings";
 const EMB_MODEL = process.env.EMBED_MODEL || "text-embedding-nomic-embed-text-v1.5";
 const INDEX_FILE = ".framework-mcp-index.json";
 
-interface Chunk {
-  file: string;
-  startLine: number;
-  endLine: number;
-  text: string;
-}
-interface IndexedChunk extends Chunk {
+export interface IndexedChunk extends CtxChunk {
   vector: number[];
 }
 
-/** Sliding-window chunking over a file's lines. */
-function chunkFile(root: string, file: string, windowLines = 50, overlap = 12): Chunk[] {
-  const rel = path.relative(root, file);
-  const lines = fs.readFileSync(file, "utf8").split("\n");
-  const chunks: Chunk[] = [];
-  const step = Math.max(1, windowLines - overlap);
-  for (let start = 0; start < lines.length; start += step) {
-    const slice = lines.slice(start, start + windowLines);
-    const text = slice.join("\n").trim();
-    if (text.length >= 20) {
-      chunks.push({
-        file: rel,
-        startLine: start + 1,
-        endLine: Math.min(start + windowLines, lines.length),
-        text,
-      });
-    }
-    if (start + windowLines >= lines.length) break;
-  }
-  return chunks;
-}
-
 /** Embed a batch of texts via the local LM Studio embeddings endpoint. */
-async function embed(texts: string[]): Promise<number[][]> {
+export async function embed(texts: string[]): Promise<number[][]> {
   const res = await fetch(EMB_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -62,11 +35,11 @@ async function embed(texts: string[]): Promise<number[][]> {
   return json.data.map((d) => d.embedding);
 }
 
-/** Build (or rebuild) the embedding index for the framework. */
+/** Build (or rebuild) the AST-aware embedding index for the framework. */
 export async function buildIndex(root: string): Promise<{ chunks: number; files: number }> {
   const files = walk(root).filter((f) => /\.(ts|md)$/.test(f) && !f.endsWith(".d.ts"));
-  const chunks: Chunk[] = [];
-  for (const f of files) chunks.push(...chunkFile(root, f));
+  const chunks: CtxChunk[] = [];
+  for (const f of files) chunks.push(...chunkFileAst(root, f));
 
   const indexed: IndexedChunk[] = [];
   const BATCH = 16;
@@ -78,13 +51,13 @@ export async function buildIndex(root: string): Promise<{ chunks: number; files:
 
   fs.writeFileSync(
     path.join(root, INDEX_FILE),
-    JSON.stringify({ model: EMB_MODEL, built: chunks.length, chunks: indexed }),
+    JSON.stringify({ model: EMB_MODEL, built: indexed.length, chunks: indexed }),
     "utf8",
   );
   return { chunks: indexed.length, files: files.length };
 }
 
-function cosine(a: number[], b: number[]): number {
+export function cosine(a: number[], b: number[]): number {
   let dot = 0;
   let na = 0;
   let nb = 0;
@@ -96,25 +69,39 @@ function cosine(a: number[], b: number[]): number {
   return dot / (Math.sqrt(na) * Math.sqrt(nb) + 1e-8);
 }
 
+/** Load the on-disk index (throws a helpful error if missing). */
+export function loadIndex(root: string): IndexedChunk[] {
+  const idxPath = path.join(root, INDEX_FILE);
+  const parsed = JSON.parse(fs.readFileSync(idxPath, "utf8")) as { chunks: IndexedChunk[] };
+  return parsed.chunks;
+}
+
+/** Build the index on first use if it doesn't exist yet. */
+export async function ensureIndex(root: string): Promise<void> {
+  if (!fs.existsSync(path.join(root, INDEX_FILE))) await buildIndex(root);
+}
+
 export interface RagHit {
   file: string;
+  symbol: string;
+  kind: string;
   startLine: number;
   endLine: number;
   score: number;
   text: string;
 }
 
-/** Semantic search over the framework. Builds the index on first use if missing. */
+/** Semantic (vector-only) search. Builds the index on first use if missing. */
 export async function semanticSearch(root: string, query: string, topK = 6): Promise<RagHit[]> {
-  const idxPath = path.join(root, INDEX_FILE);
-  if (!fs.existsSync(idxPath)) await buildIndex(root);
-
-  const { chunks } = JSON.parse(fs.readFileSync(idxPath, "utf8")) as { chunks: IndexedChunk[] };
+  await ensureIndex(root);
+  const chunks = loadIndex(root);
   const [qvec] = await embed([query]);
 
   return chunks
     .map((c) => ({
       file: c.file,
+      symbol: c.symbol,
+      kind: c.kind,
       startLine: c.startLine,
       endLine: c.endLine,
       score: Number(cosine(qvec, c.vector).toFixed(3)),

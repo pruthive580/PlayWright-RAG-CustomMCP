@@ -1,0 +1,28 @@
+{
+  // Open the REPO ROOT as your VS Code workspace, then start this server:
+  //   Command Palette -> "MCP: List Servers" -> framework -> Start
+  // Build it first:  cd framework-mcp && npm install && npm run build
+  //
+  // Playwright MCP (live browser, ~24 tools, launches Chromium) is OFF by default
+  // to keep the tool load light on modest hardware. Uncomment its block only when
+  // you need live browser automation, then restart the servers.
+  //
+  // If VS Code can't find "node" on its PATH, replace "node" with the absolute
+  // path from `which node` (e.g. /usr/local/bin/node or /opt/homebrew/bin/node).
+  "servers": {
+    "framework": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["${workspaceFolder}/framework-mcp/dist/index.js"],
+      "env": {
+        "FRAMEWORK_ROOT": "${workspaceFolder}/playwright-pom-framework",
+        "FRAMEWORK_ONLY": "1"
+      }
+    }
+    // ,"playwright": {
+    //   "type": "stdio",
+    //   "command": "node",
+    //   "args": ["${workspaceFolder}/playwright-pom-framework/node_modules/@playwright/mcp/cli.js"]
+    // }
+  }
+}
