@@ -362,6 +362,7 @@ export function getTestConventions(project: Project, root: string): TestConventi
       tags.length ? `Tag tests using the existing vocabulary: ${tags.join(", ")}.` : "",
       dataFiles.length ? `Import reusable data from: ${dataFiles.slice(0, 6).join(", ")} — don't hard-code values that already exist there.` : "",
       "Wrap tests in test.describe('<Suite>', ...). Place the spec alongside the existing tests and create it with the create_test_file tool.",
+      "After creating a spec, verify it with diagnose_test — it returns the failure (title, file:line, message) plus the relevant code to fix. Loop diagnose_test → fix → diagnose_test until failed=0.",
     ].filter(Boolean),
     template: [
       importHeader,

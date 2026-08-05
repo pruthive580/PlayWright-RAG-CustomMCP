@@ -17,6 +17,7 @@ import {
 } from "./analysis.js";
 import { semanticSearch, buildIndex } from "./rag.js";
 import { retrieveContext, codeMap } from "./context.js";
+import { runDiagnose } from "./diagnose.js";
 import { BrowserSession } from "./browser.js";
 
 const ROOT = path.resolve(
@@ -314,6 +315,27 @@ server.registerTool(
       });
     });
     return reply(out.length > 4000 ? out.slice(-4000) : out);
+  },
+);
+
+server.registerTool(
+  "diagnose_test",
+  {
+    title: "Diagnose Test (run + parse failures + fix context)",
+    description:
+      "Run a spec (or all tests) and return a STRUCTURED result: pass/fail/skip counts and, for each failure, the test title, file:line, and the error message — PLUS a retrieve_context pack relevant to the top failure so you can fix it immediately. Use this as a repair loop: diagnose_test → edit the spec with create_test_file → diagnose_test again, until failed=0.",
+    inputSchema: { path: z.string().optional(), grep: z.string().optional() },
+  },
+  async ({ path: rel, grep }) => {
+    const res = await runDiagnose(ROOT, { path: rel, grep });
+    const payload: Record<string, unknown> = { passed: res.passed, failed: res.failed, skipped: res.skipped, failures: res.failures };
+    if (res.raw) payload.raw = res.raw;
+    if (res.failures.length) {
+      const f = res.failures[0];
+      const pack = await retrieveContext(ROOT, `${f.title} ${f.message}`, { tokenBudget: 1500 });
+      if (pack.items.length) payload.fixContext = pack.text;
+    }
+    return reply(payload);
   },
 );
 

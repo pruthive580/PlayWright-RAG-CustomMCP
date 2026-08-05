@@ -39,7 +39,7 @@ const EXPECTED_TOOLS = [
   "list_page_objects", "list_tests", "get_test_conventions", "search_code",
   "read_file", "get_architecture", "semantic_search", "build_rag_index",
   "retrieve_context", "code_map",
-  "create_test_file", "write_architecture_doc", "run_test",
+  "create_test_file", "write_architecture_doc", "run_test", "diagnose_test",
 ];
 
 const PROBE_SPEC = `import { test, expect } from '../../src/fixtures/test-fixtures';
@@ -96,6 +96,7 @@ async function main() {
     ["code_map", { area: "pages" }, (t) => /class LoginPage/.test(t) && /\+ login/.test(t)],
     ["create_test_file", { path: "generated/_probe.spec.ts", content: PROBE_SPEC }, (t) => /Created/.test(t)],
     ["run_test", { path: "tests/generated/_probe.spec.ts" }, (t) => /passed/.test(t)],
+    ["diagnose_test", { path: "tests/generated/_probe.spec.ts" }, (t) => /"passed":\s*1/.test(t) && /"failed":\s*0/.test(t)],
     ["write_architecture_doc", { path: "ARCHITECTURE._probe.md" }, (t) => /Wrote/.test(t)],
   ];
 

@@ -12,5 +12,6 @@
   "read_file": "Read a framework file (path relative to root), optional line range.",
   "create_test_file": "Write a new Playwright spec into tests/ (path must end .spec.ts). FIRST call list_page_objects + get_test_conventions; the spec MUST use real page-object methods and fixtures, never raw page.* calls.",
   "write_architecture_doc": "Generate + write a complete ARCHITECTURE.md (both Mermaid diagrams + tables) in one call. Prefer this over composing the doc yourself.",
-  "run_test": "Run Playwright tests. Optional 'path' (a spec) or 'grep'. Returns the result summary."
+  "run_test": "Run Playwright tests. Optional 'path' (a spec) or 'grep'. Returns the result summary.",
+  "diagnose_test": "Run a spec and return STRUCTURED failures (title, file:line, message) + a retrieve_context fix pack. Repair loop: diagnose_test -> fix with create_test_file -> diagnose_test until failed=0."
 }
