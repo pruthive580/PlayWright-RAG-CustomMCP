@@ -109,18 +109,31 @@ async function main() {
 
   // ── Write configs ─────────────────────────────────────────────────────────
   say(`\n${C.b}6) Write configuration${C.x}`);
-  const mcpJson = {
-    servers: {
-      framework: {
-        type: "stdio",
-        command: NODE,
-        args: [path.join(mcpDir, "dist", "index.js")],
-        env: { FRAMEWORK_ROOT: projectPath, FRAMEWORK_ONLY: "1" },
-      },
-    },
-  };
+  const q = (s) => JSON.stringify(s);
+  const pwCli = path.join(projectPath, "node_modules", "@playwright", "mcp", "cli.js");
+  // Written as JSONC so the Playwright MCP is PRESENT but commented-out (off by default) —
+  // uncomment its block and restart the servers when you want browser-driven authoring.
+  const mcpText = `{
+  // Framework MCP loads by default. Start it: Command Palette -> "MCP: List Servers" -> framework -> Start.
+  // Playwright MCP (live browser, ~24 tools) is present but OFF to keep the load light on modest hardware.
+  // Uncomment the "playwright" block below and restart the servers when you need browser-driven authoring.
+  "servers": {
+    "framework": {
+      "type": "stdio",
+      "command": ${q(NODE)},
+      "args": [${q(path.join(mcpDir, "dist", "index.js"))}],
+      "env": { "FRAMEWORK_ROOT": ${q(projectPath)}, "FRAMEWORK_ONLY": "1" }
+    }
+    // ,"playwright": {
+    //   "type": "stdio",
+    //   "command": ${q(NODE)},
+    //   "args": [${q(pwCli)}]
+    // }
+  }
+}
+`;
   fs.mkdirSync(path.join(HERE, ".vscode"), { recursive: true });
-  fs.writeFileSync(path.join(HERE, ".vscode", "mcp.json"), JSON.stringify(mcpJson, null, 2));
+  fs.writeFileSync(path.join(HERE, ".vscode", "mcp.json"), mcpText);
   ok(".vscode/mcp.json (open the repo root in VS Code, then MCP: List Servers → framework → Start)");
 
   const gen = path.join(HERE, "generated");
