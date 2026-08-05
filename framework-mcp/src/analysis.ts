@@ -156,14 +156,46 @@ export function readFileSafe(root: string, rel: string, start?: number, end?: nu
     .join("\n");
 }
 
-/** Write a new spec under tests/. Guards path traversal and enforces .spec.ts. */
+/** Extract just the code from a model's answer: unwrap ```fences, drop leading prose and trailing commentary. */
+export function extractCode(s: string): string {
+  let c = String(s).trim();
+  const fence = c.match(/```(?:ts|typescript|tsx|js|javascript)?\s*([\s\S]*?)```/);
+  if (fence) c = fence[1].trim();
+  const start = c.search(/^\s*(import\b|import type\b|const\b|let\b|test\b|test\.\w|describe\b|\/\/|\/\*)/m);
+  if (start > 0) c = c.slice(start);
+  const lastBrace = c.lastIndexOf("}");
+  if (lastBrace > 0 && lastBrace < c.length - 1) {
+    const trailing = c.slice(lastBrace + 1);
+    if (!/[;)\]]/.test(trailing)) c = c.slice(0, lastBrace + 1); // trailing is prose, not code
+  }
+  return c.trim();
+}
+
+/** Detect where this repo keeps its specs (longest common dir of existing spec files); fallback tests/. */
+export function detectTestDir(root: string): string {
+  const dirs = walk(root)
+    .filter((f) => /\.(spec|test)\.ts$/.test(f))
+    .map((f) => path.relative(root, path.dirname(f)));
+  if (!dirs.length) return "tests";
+  const split = dirs.map((d) => d.split(path.sep));
+  let common = split[0];
+  for (const s of split.slice(1)) {
+    let i = 0;
+    while (i < common.length && i < s.length && common[i] === s[i]) i++;
+    common = common.slice(0, i);
+  }
+  return common.length ? common.join(path.sep) : "tests";
+}
+
+/** Write a new spec into the repo's detected test directory. Guards path traversal and enforces .spec.ts. */
 export function createTestFile(root: string, rel: string, content: string): string {
   if (!rel.endsWith(".spec.ts")) throw new Error("Test file name must end with .spec.ts");
-  const testsRoot = path.resolve(root, "tests");
-  const abs = path.resolve(testsRoot, rel);
-  if (!abs.startsWith(testsRoot + path.sep)) throw new Error("Test path escapes tests/ directory");
+  const testDir = path.resolve(root, detectTestDir(root));
+  const abs = path.resolve(testDir, rel);
+  const rootAbs = path.resolve(root);
+  if (abs !== rootAbs && !abs.startsWith(rootAbs + path.sep)) throw new Error("Test path escapes framework root");
   fs.mkdirSync(path.dirname(abs), { recursive: true });
-  fs.writeFileSync(abs, content, "utf8");
+  fs.writeFileSync(abs, extractCode(content), "utf8");
   return path.relative(root, abs);
 }
 

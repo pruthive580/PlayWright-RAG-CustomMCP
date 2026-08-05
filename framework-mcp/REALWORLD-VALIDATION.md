@@ -52,6 +52,33 @@ specs is expected (its 6 page objects were still detected).
 - **Robust at scale:** the largest repos (79 files / 98 tests, 60 files / 70 tests) analysed in
   well under 200 ms with no errors.
 
+## Retrieval relevance (cross-repo)
+
+Beyond "indexing works," how relevant is what `retrieve_context` returns? For every page-object
+method across 6 real repos, a natural query was synthesized from the method name and retrieval was
+checked for whether it surfaced that exact method in the top-6:
+
+**84% hit@6 · MRR 0.68 across 179 methods in 6 repos** (per-repo 67–100%). These are name-derived
+queries — a capability *floor* (favourable to retrieval), not a hard semantic benchmark. On the
+bundled sample's hand-authored queries (including non-name-overlap ones) it is **hit@6 100% /
+MRR 0.80**. Harness: `test/relevance-eval.mjs`.
+
+## Test generation on unseen frameworks
+
+Can it write a *framework-correct* spec for a repo it has never seen? For 3 arbitrary repos a local
+Qwen3-8B was given only that repo's detected conventions and asked for one spec; the output was
+statically verified:
+
+| | import header | real page object / fixture | has `test()` | valid TypeScript |
+|---|:--:|:--:|:--:|:--:|
+| 3 unseen repos | **3/3** | **3/3** | **3/3** | **3/3** |
+
+Each spec used the repo's exact detected header (`@playwright/test`, `../../fixtures/apiFixtures`,
+`@base-test`) and referenced real page objects/fixtures. Two `create_test_file` hardenings came out
+of this: it now (a) writes into the repo's **detected** test directory (e.g. `src/tests`, not a
+hardcoded `tests/`), and (b) runs a **code-extractor** so messy small-model output (fences, trailing
+prose) still lands as clean, valid TS. Harness: `test/gen-eval.mjs`.
+
 ## Known scope boundaries (future work)
 
 - **JavaScript-only repos** (e.g. QA-Practice above) aren't analysed — the layer is TypeScript
