@@ -29,6 +29,7 @@ const OVERRIDES = loadOverrides(process.env.OVERRIDES);   // curated terse descr
 const NO_THINK = process.env.NO_THINK !== "0";
 const NO_THINK_MATCH = new RegExp(process.env.NO_THINK_MATCH || "qwen3", "i");
 const LOG = process.env.LOG !== "0";
+const PASSTHROUGH = process.env.PASSTHROUGH === "1"; // transparent mode: no filtering/slimming/no_think. For high-spec setups that don't need the adapter's help but still want the dashboard.
 const TOOL_FILTER = process.env.TOOL_FILTER === "1";                 // opt-in: send only tools relevant to the current prompt
 const TOOL_FILTER_MAX = Number(process.env.TOOL_FILTER_MAX || 24);  // hard cap on tools forwarded
 const TOOL_FILTER_FLOOR = Number(process.env.TOOL_FILTER_FLOOR || 6); // min tools when the prompt has signal (keeps the agent workable)
@@ -337,7 +338,7 @@ const server = http.createServer(async (req, res) => {
       const before = estTokens(body);
       let slimmed = body;
       let keptTools = toolCount;
-      if (toolCount) {
+      if (!PASSTHROUGH && toolCount) {
         let tools = body.tools;
         if (TOOL_DENY) tools = tools.filter((t) => !TOOL_DENY.test(fname(t)));
         if (TOOL_FILTER) tools = filterToolsByPrompt(tools, body.messages);
@@ -345,7 +346,7 @@ const server = http.createServer(async (req, res) => {
         if (COMPRESS || STRIP_PARAM_DESC) tools = slimTools(tools);
         slimmed = { ...slimmed, tools };
       }
-      slimmed = injectNoThink(slimmed);
+      if (!PASSTHROUGH) slimmed = injectNoThink(slimmed);
       const after = estTokens(slimmed);
       const uText = firstUserText(body.messages);
 
@@ -373,7 +374,7 @@ server.listen(PORT, () => {
   console.error(`slim-agent-adapter → :${PORT} proxying ${UPSTREAM}`);
   console.error(`  proxy:      http://localhost:${PORT}/v1`);
   console.error(`  dashboard:  http://localhost:${PORT}/dashboard`);
-  console.error(`  compress=${COMPRESS} stripParamDesc=${STRIP_PARAM_DESC} truncateDesc=${TRUNCATE_DESC} overrides=${Object.keys(OVERRIDES).length} noThink=${NO_THINK}`);
+  console.error(`  passthrough=${PASSTHROUGH} compress=${COMPRESS} stripParamDesc=${STRIP_PARAM_DESC} truncateDesc=${TRUNCATE_DESC} overrides=${Object.keys(OVERRIDES).length} noThink=${NO_THINK}`);
   console.error(`  toolFilter=${TOOL_FILTER}${TOOL_FILTER ? ` (max=${TOOL_FILTER_MAX} floor=${TOOL_FILTER_FLOOR}${TOOL_FILTER_KEEP ? ` keep=/${TOOL_FILTER_KEEP.source}/` : ""})` : ""}${TOOL_DENY ? ` deny=/${TOOL_DENY.source}/` : ""}`);
 });
 

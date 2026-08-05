@@ -61,14 +61,21 @@ Keep your model server (LM Studio/Ollama) running as usual on `:1234`.
 | `MAX_TOOL_DESC` | `100` | Max chars kept per description when `TRUNCATE_DESC=1` |
 | `STRIP_PARAM_DESC` | `1` | Drop per-parameter prose (keeps type/enum/required) |
 | `COMPRESS` | `1` | Master switch for description handling |
+| `TOOL_FILTER` | `0` | Forward only the tools relevant to the current prompt (opt-in) |
+| `TOOL_FILTER_KEEP` | *(none)* | Always-keep tool-name regex, e.g. `^mcp_` to never drop your MCP tools |
+| `TOOL_DENY` | *(none)* | Always-drop tool-name regex, e.g. `create_new_workspace` (scaffolders small models misfire on) |
+| `TOOL_FILTER_MAX` | `24` | Max tools forwarded when filtering |
+| `TOOL_FILTER_FLOOR` | `6` | Min tools kept when the prompt has signal |
 | `NO_THINK` | `1` | Inject `/no_think` for matching models |
 | `NO_THINK_MATCH` | `qwen3` | Regex of model ids to disable thinking on |
+| `PASSTHROUGH` | `0` | **Switch:** transparent mode — no filtering/slimming/no_think. For high-spec setups that don't need the adapter's help but still want the dashboard. |
 | `LOG` | `1` | Log per-request token savings to stderr |
 
 Recommended launch:
 
 ```bash
-OVERRIDES=./overrides.example.json node index.mjs
+TOOL_FILTER=1 TOOL_FILTER_KEEP='^mcp_' TOOL_DENY='create_new_workspace|new_workspace' \
+  OVERRIDES=./overrides.example.json node index.mjs
 ```
 
 ## Honest tradeoffs

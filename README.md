@@ -88,6 +88,17 @@ git clone https://github.com/pruthive580/PlayWright-RAG-CustomMCP.git
 cd PlayWright-RAG-CustomMCP
 ```
 
+### Quick start (recommended) — interactive installer
+
+```bash
+node setup.mjs
+```
+
+It checks prerequisites, asks for your **framework path** and **machine tier**, builds the MCP, loads the local models via LM Studio, and writes your VS Code MCP config + Copilot model config + adapter launch command. **Pick tier 2 (high-spec) to skip the adapter entirely** — if you can comfortably run a 14B, you don't need it.
+
+<details>
+<summary><b>Manual setup</b> (if you'd rather do it by hand)</summary>
+
 **1. Build the MCP (context engine)**
 ```bash
 cd framework-mcp
@@ -137,6 +148,8 @@ Also set `"chat.byokUtilityModelDefault": "mainAgent"` in VS Code settings so Co
 
 **6. Wire the MCP.** Open the **repo root** in VS Code — `.vscode/mcp.json` is already configured. Command Palette → **"MCP: List Servers"** → `framework` → **Start**. The 13 tools (incl. `retrieve_context`, `code_map`) appear in the 🔧 tools picker.
 
+</details>
+
 ---
 
 ## Usage
@@ -176,6 +189,8 @@ The retrieval upgrade in one line: **AST-aware chunking** (whole methods/classes
 | `/dashboard` | Live requests, sessions, and a per-request prompt-optimization inspector |
 
 Measured **−25% to −42%** tool tokens per turn. See `slim-agent-adapter/README.md` for all env vars.
+
+**Optional / switchable.** High-spec users who can run a larger model don't need the adapter — pick **tier 2** in the installer and VS Code talks to LM Studio (`:1234`) directly. Or keep it in the loop for the dashboard but turn off every transform with `PASSTHROUGH=1`.
 
 ---
 
