@@ -82,6 +82,9 @@ prose) still lands as clean, valid TS. Harness: `test/gen-eval.mjs`.
 
 ## Known scope boundaries (future work)
 
+- **Web (browser) UI automation only.** The explore-and-author flow drives a real browser via the
+  Playwright MCP, so API-only, mobile, and visual testing are out of scope (the read-only analysis
+  tools still work on any Playwright TS repo).
 - **JavaScript-only repos** (e.g. QA-Practice above) aren't analysed — the layer is TypeScript
   (ts-morph) today. A `.js` mode is a natural extension.
 - **Cucumber/BDD** (`.feature` + steps) isn't parsed as "tests" — page objects are still found.

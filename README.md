@@ -11,6 +11,8 @@ Under the hood, three pieces work together:
 
 It's **driver-agnostic** — the same tools work whether the brain is a local LLM (LM Studio + the adapter), **Claude Code**, or any frontier model. Clone it, run one setup wizard, and plug it into your Playwright + TypeScript repo.
 
+> **Scope: web (browser) UI test automation** — Playwright + TypeScript. The explore-and-author flow drives a real browser, so **API-only, mobile, and visual testing are out of scope**. (The read-only analysis tools — coverage, conventions, code map — work on any Playwright TS repo, but the authoring path is web-UI.)
+
 ## The end-to-end journey
 
 ```mermaid
