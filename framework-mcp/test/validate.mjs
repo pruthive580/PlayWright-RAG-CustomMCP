@@ -38,7 +38,7 @@ const textOf = (res) =>
 const EXPECTED_TOOLS = [
   "list_page_objects", "list_tests", "get_test_conventions", "search_code",
   "read_file", "get_architecture", "semantic_search", "build_rag_index",
-  "retrieve_context", "code_map", "related_code", "check_coverage",
+  "retrieve_context", "code_map", "related_code", "check_coverage", "get_jira",
   "create_test_file", "write_architecture_doc", "run_test", "diagnose_test",
 ];
 
@@ -96,9 +96,10 @@ async function main() {
     ["code_map", { area: "pages" }, (t) => /class LoginPage/.test(t) && /\+ login/.test(t)],
     ["related_code", { target: "InventoryPage" }, (t) => /InventoryPage/.test(t) && /used by|dependents/i.test(t)],
     ["check_coverage", { requirement: "As a user I can log in with valid credentials" }, (t) => /likely-covered/.test(t) && /log in/i.test(t)],
+    ["get_jira", { id: "ABC-123" }, (t) => /not configured|JIRA_BASE_URL|"key"/.test(t)],
     ["create_test_file", { path: "generated/_probe.spec.ts", content: PROBE_SPEC }, (t) => /Created/.test(t)],
     ["run_test", { path: "tests/generated/_probe.spec.ts" }, (t) => /passed/.test(t)],
-    ["diagnose_test", { path: "tests/generated/_probe.spec.ts" }, (t) => /"passed":\s*1/.test(t) && /"failed":\s*0/.test(t)],
+    ["diagnose_test", { path: "tests/generated/_probe.spec.ts", env: "staging" }, (t) => /"passed":\s*1/.test(t) && /"failed":\s*0/.test(t)],
     ["write_architecture_doc", { path: "ARCHITECTURE._probe.md" }, (t) => /Wrote/.test(t)],
   ];
 

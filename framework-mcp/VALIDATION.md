@@ -1,11 +1,11 @@
 # MCP + Adapter Validation Report
 
-Result: **31/31 checks passed**.
-Adapter slimming over 13 live model calls: 26783 → 13507 tool tokens (**-50%**).
+Result: **32/32 checks passed**.
+Adapter slimming over 13 live model calls: 29193 → 13723 tool tokens (**-53%**).
 
 | Layer | Check | Result | Detail |
 |---|---|---|---|
-| surface | `tool inventory` | ✅ PASS | 16 tools: build_rag_index, check_coverage, code_map, create_test_file, diagnose_test, get_ |
+| surface | `tool inventory` | ✅ PASS | 17 tools: build_rag_index, check_coverage, code_map, create_test_file, diagnose_test, get_ |
 | mcp | `list_page_objects` | ✅ PASS | [ { "name": "BasePage", "abstract": true, "file": "src/pages/BasePage.ts", "meth |
 | mcp | `list_tests` | ✅ PASS | [ { "file": "tests/auth/login.spec.ts", "suites": [ "Authentication" ], "tests": |
 | mcp | `get_test_conventions` | ✅ PASS | { "importHeader": "import { test, expect } from '../../src/fixtures/test-fixture |
@@ -13,12 +13,13 @@ Adapter slimming over 13 live model calls: 26783 → 13507 tool tokens (**-50%**
 | mcp | `read_file` | ✅ PASS | 1 import { Page, Locator, expect } from '@playwright/test'; 2 import { BasePage  |
 | mcp | `get_architecture` | ✅ PASS | ```mermaid %%{init: {'flowchart': {'curve': 'basis', 'nodeSpacing': 45, 'rankSpa |
 | mcp | `get_architecture[pages]` | ✅ PASS | ```mermaid classDiagram class BasePage { <<abstract>> +goto() +waitForVisible()  |
-| mcp | `build_rag_index` | ✅ PASS | { "chunks": 58, "files": 18 } |
+| mcp | `build_rag_index` | ✅ PASS | { "chunks": 60, "files": 18 } |
 | mcp | `semantic_search` | ✅ PASS | [ { "file": "tests/auth/login.spec.ts", "symbol": "test: standard user can log i |
-| mcp | `retrieve_context` | ✅ PASS | Context pack for: "how do we log in the standard user" — 11 chunks, ~988 tokens  |
+| mcp | `retrieve_context` | ✅ PASS | Context pack for: "how do we log in the standard user" — 11 chunks, ~993 tokens  |
 | mcp | `code_map` | ✅ PASS | ### src/pages/BasePage.ts class BasePage «abstract» + goto() + waitForVisible(lo |
 | mcp | `related_code` | ✅ PASS | # src/pages/InventoryPage.ts ## defines class InventoryPage extends BasePage + e |
 | mcp | `check_coverage` | ✅ PASS | { "verdict": "likely-covered", "confidence": 0.9, "relatedTests": [ { "file": "t |
+| mcp | `get_jira` | ✅ PASS | { "error": "Jira is not configured. Set JIRA_BASE_URL, JIRA_EMAIL and JIRA_API_T |
 | mcp | `create_test_file` | ✅ PASS | Created tests/generated/_probe.spec.ts |
 | mcp | `run_test` | ✅ PASS | Running 1 test using 1 worker ✓ 1 [chromium] › tests/generated/_probe.spec.ts:4: |
 | mcp | `diagnose_test` | ✅ PASS | { "passed": 1, "failed": 0, "skipped": 0, "failures": [] } |

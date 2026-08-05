@@ -2,8 +2,18 @@ import { defineConfig, devices } from '@playwright/test';
 
 /**
  * Playwright configuration.
- * The framework targets SauceDemo (https://www.saucedemo.com) as a stable demo app.
+ * baseURL is selected by the TEST_ENV variable so the framework is environment-aware
+ * (the MCP's run_test/diagnose_test pass `env` through as TEST_ENV). Both envs point at
+ * SauceDemo here to confirm env selection without needing a second live site.
  */
+const ENVS: Record<string, string> = {
+  staging: 'https://www.saucedemo.com',
+  prod: 'https://www.saucedemo.com',
+};
+const TEST_ENV = process.env.TEST_ENV || 'staging';
+const baseURL = ENVS[TEST_ENV] ?? ENVS.staging;
+if (process.env.TEST_ENV) console.error(`[env] TEST_ENV=${TEST_ENV} -> baseURL ${baseURL}`);
+
 export default defineConfig({
   testDir: './tests',
   fullyParallel: true,
@@ -16,7 +26,7 @@ export default defineConfig({
   },
   reporter: [['list'], ['html', { open: 'never' }]],
   use: {
-    baseURL: 'https://www.saucedemo.com',
+    baseURL,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',

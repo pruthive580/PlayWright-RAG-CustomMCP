@@ -39,7 +39,7 @@ flowchart TB
   end
 
   subgraph mcp["framework-mcp  (context engine · stdio)"]
-    tools["16 tools: retrieve_context, code_map,<br/>get_architecture, create_test_file, run_test…"]
+    tools["17 tools: retrieve_context, code_map,<br/>get_architecture, create_test_file, run_test…"]
     rag["AST chunks → hybrid rank → MMR → token budget"]
   end
 
@@ -146,7 +146,7 @@ TOOL_FILTER=1 TOOL_FILTER_KEEP='^mcp_' TOOL_DENY='create_new_workspace|new_works
 ```
 Also set `"chat.byokUtilityModelDefault": "mainAgent"` in VS Code settings so Copilot uses your one model for everything (no phantom "utility model").
 
-**6. Wire the MCP.** Open the **repo root** in VS Code — `.vscode/mcp.json` is already configured. Command Palette → **"MCP: List Servers"** → `framework` → **Start**. The 16 tools (incl. `retrieve_context`, `code_map`) appear in the 🔧 tools picker.
+**6. Wire the MCP.** Open the **repo root** in VS Code — `.vscode/mcp.json` is already configured. Command Palette → **"MCP: List Servers"** → `framework` → **Start**. The 17 tools (incl. `retrieve_context`, `code_map`) appear in the 🔧 tools picker.
 
 </details>
 
@@ -169,11 +169,14 @@ Keep the **dashboard** (`http://localhost:1235/dashboard`) open to watch each re
 
 ## Components in depth
 
-### `framework-mcp` — the context engine (16 tools)
+### `framework-mcp` — the context engine (17 tools)
 
 Understanding: `list_page_objects`, `list_tests`, `get_test_conventions`, `search_code`, `read_file`, `get_architecture`.
 RAG / context: **`retrieve_context`** (hybrid semantic+keyword ranking → MMR de-dup → token-budgeted, cited pack), **`check_coverage`** (requirement/story → related tests + confidence verdict), **`code_map`** (skeleton), **`related_code`** (import-graph neighbourhood: deps + dependents), `semantic_search`, `build_rag_index`.
-Generation & repair: `create_test_file` (POM-correct), `write_architecture_doc`, `run_test`, **`diagnose_test`** (run → structured failure + fix-context, for a generate→run→repair loop).
+Requirement & execution: **`get_jira`** (fetch a Jira issue by key → the requirement; REST + your token, driver-agnostic), `run_test` / `diagnose_test` — both **env-aware** (an `env` arg flows through as `TEST_ENV`, which the Playwright config maps to a baseURL).
+Generation & repair: `create_test_file` (POM-correct), `write_architecture_doc`, **`diagnose_test`** (run → structured failure + fix-context, for a generate→run→repair loop).
+
+**The full loop:** `get_jira` → `check_coverage` → *covered?* run the listed cases (env-aware) · *not covered?* `get_test_conventions` + explore (Playwright MCP) → `create_test_file` → `diagnose_test` until green. Driver-agnostic: same tools whether the driver is a local 8B (via the adapter), Claude Code, or any frontier model.
 
 The retrieval upgrade in one line: **AST-aware chunking** (whole methods/classes/tests, not line fragments) → **hybrid ranking** → **MMR** → **token budget**. Validated **28/28** (see `framework-mcp/VALIDATION.md`); retrieval quality **99% hit@6 across 6 real repos** (178/179, with symbol-aware reranking), 100% on the sample (`framework-mcp/test/`).
 

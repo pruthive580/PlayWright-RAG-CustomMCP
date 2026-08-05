@@ -55,12 +55,16 @@ export function parsePlaywrightJson(json: any): DiagnoseResult {
   return { passed, failed, skipped, failures };
 }
 
-export function runDiagnose(root: string, opts: { path?: string; grep?: string }): Promise<DiagnoseResult> {
+export function runDiagnose(root: string, opts: { path?: string; grep?: string; env?: string }): Promise<DiagnoseResult> {
   const bin = path.join(root, "node_modules", ".bin", "playwright");
   const args = ["test", "--reporter=json"];
   if (opts.path) args.push(opts.path);
   if (opts.grep) args.push("--grep", opts.grep);
-  const env = { ...process.env, PATH: `${path.dirname(process.execPath)}:${process.env.PATH ?? ""}` };
+  const env = {
+    ...process.env,
+    PATH: `${path.dirname(process.execPath)}:${process.env.PATH ?? ""}`,
+    ...(opts.env ? { TEST_ENV: opts.env } : {}),
+  };
 
   return new Promise((resolve) => {
     execFile(bin, args, { cwd: root, env, timeout: 180_000, maxBuffer: 24 * 1024 * 1024 }, (_err, stdout, stderr) => {

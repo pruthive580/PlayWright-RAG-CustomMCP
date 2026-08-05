@@ -18,6 +18,7 @@ import {
 import { semanticSearch, buildIndex } from "./rag.js";
 import { retrieveContext, codeMap, relatedCode, checkCoverage } from "./context.js";
 import { runDiagnose } from "./diagnose.js";
+import { getJira } from "./jira.js";
 import { BrowserSession } from "./browser.js";
 
 const ROOT = path.resolve(
@@ -177,6 +178,17 @@ server.registerTool(
   async ({ requirement }) => reply(await checkCoverage(ROOT, requirement)),
 );
 
+server.registerTool(
+  "get_jira",
+  {
+    title: "Get Jira Issue",
+    description:
+      "Fetch a Jira issue by key (e.g. ABC-123): summary, type, status, description (ADF flattened to text), labels, components. Requires JIRA_BASE_URL / JIRA_EMAIL / JIRA_API_TOKEN env vars on the MCP server. Use the summary + description as the requirement for check_coverage and for authoring a test.",
+    inputSchema: { id: z.string().describe("Jira issue key, e.g. ABC-123") },
+  },
+  async ({ id }) => reply(await getJira(id)),
+);
+
 // ─── Browser automation ─────────────────────────────────────────────────────
 // Disabled when FRAMEWORK_ONLY=1 — use this when the official @playwright/mcp
 // server is running alongside and owns all browser driving (no tool overlap).
@@ -321,15 +333,15 @@ server.registerTool(
   {
     title: "Run Test",
     description:
-      "Run Playwright tests in the framework. Pass a spec path (relative to the framework root) to run one file, or omit to run all. Returns the result summary.",
-    inputSchema: { path: z.string().optional(), grep: z.string().optional() },
+      "Run Playwright tests in the framework. Pass a spec path (relative to the framework root) to run one file, or omit to run all. Optional 'env' selects the target environment (exposed to the framework as the TEST_ENV variable, which the playwright config maps to a baseURL). Returns the result summary.",
+    inputSchema: { path: z.string().optional(), grep: z.string().optional(), env: z.string().optional() },
   },
-  async ({ path: rel, grep }) => {
+  async ({ path: rel, grep, env: testEnv }) => {
     const bin = path.join(ROOT, "node_modules", ".bin", "playwright");
     const args = ["test"];
     if (rel) args.push(rel);
     if (grep) args.push("--grep", grep);
-    const env = { ...process.env, PATH: `${path.dirname(process.execPath)}:${process.env.PATH ?? ""}` };
+    const env = { ...process.env, PATH: `${path.dirname(process.execPath)}:${process.env.PATH ?? ""}`, ...(testEnv ? { TEST_ENV: testEnv } : {}) };
     const out: string = await new Promise((resolve) => {
       execFile(bin, args, { cwd: ROOT, env, timeout: 180_000 }, (err, stdout, stderr) => {
         const body = `${stdout}\n${stderr}`.trim();
@@ -346,10 +358,10 @@ server.registerTool(
     title: "Diagnose Test (run + parse failures + fix context)",
     description:
       "Run a spec (or all tests) and return a STRUCTURED result: pass/fail/skip counts and, for each failure, the test title, file:line, and the error message — PLUS a retrieve_context pack relevant to the top failure so you can fix it immediately. Use this as a repair loop: diagnose_test → edit the spec with create_test_file → diagnose_test again, until failed=0.",
-    inputSchema: { path: z.string().optional(), grep: z.string().optional() },
+    inputSchema: { path: z.string().optional(), grep: z.string().optional(), env: z.string().optional() },
   },
-  async ({ path: rel, grep }) => {
-    const res = await runDiagnose(ROOT, { path: rel, grep });
+  async ({ path: rel, grep, env: testEnv }) => {
+    const res = await runDiagnose(ROOT, { path: rel, grep, env: testEnv });
     const payload: Record<string, unknown> = { passed: res.passed, failed: res.failed, skipped: res.skipped, failures: res.failures };
     if (res.raw) payload.raw = res.raw;
     if (res.failures.length) {
