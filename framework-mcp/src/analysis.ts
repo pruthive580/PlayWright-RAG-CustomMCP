@@ -171,6 +171,27 @@ export function extractCode(s: string): string {
   return c.trim();
 }
 
+/** Detect the environments this framework can target (from playwright.config) + the selector variable. */
+export function listEnvironments(root: string): { envVar: string | null; environments: string[]; note: string } {
+  const cfg = ["playwright.config.ts", "playwright.config.js", "playwright.config.mjs"]
+    .map((f) => path.join(root, f))
+    .find((f) => fs.existsSync(f));
+  if (!cfg) return { envVar: null, environments: [], note: "No playwright.config found — ask the user for a target environment (or baseURL) and pass it as the 'env' arg." };
+  const text = fs.readFileSync(cfg, "utf8");
+  const envVar = (text.match(/process\.env\.([A-Z_][A-Z0-9_]*)/) || [])[1] || null;
+  const environments = new Set<string>();
+  for (const m of text.matchAll(/(['"]?[\w-]+['"]?)\s*:\s*['"`]https?:\/\/[^'"`]+['"`]/g)) {
+    environments.add(m[1].replace(/['"]/g, ""));
+  }
+  return {
+    envVar,
+    environments: [...environments],
+    note: environments.size
+      ? "Before running, ASK the user which of these environments to target, then pass their choice as the 'env' arg to run_test / diagnose_test."
+      : "No named environments detected — ask the user for a target environment (or baseURL) and pass it as 'env'.",
+  };
+}
+
 /** Detect where this repo keeps its specs (longest common dir of existing spec files); fallback tests/. */
 export function detectTestDir(root: string): string {
   const dirs = walk(root)
@@ -357,6 +378,7 @@ export interface TestConventions {
   tags: string[];
   rules: string[];
   template: string;
+  workflow: string[];
 }
 
 /**
@@ -405,6 +427,9 @@ export function getTestConventions(project: Project, root: string): TestConventi
       "  });",
       "});",
     ].join("\n"),
+    workflow: [
+      "Given a requirement in plain English (or a Jira id): (1) if it's a Jira key, call get_jira to fetch summary + description; (2) call check_coverage on the requirement and REVIEW the cases it lists — a match in title/steps is a signal, confirm it actually covers the requirement; (3) if it IS covered — call list_environments, ASK the user which environment to run against, then run_test / diagnose_test with env set to their choice; (4) if it is NOT covered — explore the app with the Playwright MCP to capture the real selectors/flow, translate those into this framework's page-object methods (never emit raw page.* from the recording), create_test_file, then diagnose_test and fix until failed=0.",
+    ],
   };
 }
 

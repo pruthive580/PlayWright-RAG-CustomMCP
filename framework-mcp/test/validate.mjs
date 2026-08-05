@@ -38,7 +38,7 @@ const textOf = (res) =>
 const EXPECTED_TOOLS = [
   "list_page_objects", "list_tests", "get_test_conventions", "search_code",
   "read_file", "get_architecture", "semantic_search", "build_rag_index",
-  "retrieve_context", "code_map", "related_code", "check_coverage", "get_jira",
+  "retrieve_context", "code_map", "related_code", "check_coverage", "get_jira", "list_environments",
   "create_test_file", "write_architecture_doc", "run_test", "diagnose_test",
 ];
 
@@ -97,6 +97,7 @@ async function main() {
     ["related_code", { target: "InventoryPage" }, (t) => /InventoryPage/.test(t) && /used by|dependents/i.test(t)],
     ["check_coverage", { requirement: "As a user I can log in with valid credentials" }, (t) => /likely-covered/.test(t) && /log in/i.test(t)],
     ["get_jira", { id: "ABC-123" }, (t) => /not configured|JIRA_BASE_URL|"key"/.test(t)],
+    ["list_environments", {}, (t) => /TEST_ENV/.test(t) && /staging|prod/.test(t)],
     ["create_test_file", { path: "generated/_probe.spec.ts", content: PROBE_SPEC }, (t) => /Created/.test(t)],
     ["run_test", { path: "tests/generated/_probe.spec.ts" }, (t) => /passed/.test(t)],
     ["diagnose_test", { path: "tests/generated/_probe.spec.ts", env: "staging" }, (t) => /"passed":\s*1/.test(t) && /"failed":\s*0/.test(t)],
@@ -161,7 +162,7 @@ async function main() {
     ["build_rag_index", "Rebuild the semantic-search embedding index."],
     ["create_test_file", "Create a new spec file at generated/model_probe.spec.ts that checks the inventory page loads.", ["get_test_conventions", "list_page_objects", "retrieve_context"]],
     ["write_architecture_doc", "Generate and write the ARCHITECTURE.md documentation file."],
-    ["run_test", "Run the smoke tests for me."],
+    ["run_test", "Run the smoke tests for me.", ["list_environments"]],
   ];
 
   for (const [expected, prompt, alt] of modelCases) {

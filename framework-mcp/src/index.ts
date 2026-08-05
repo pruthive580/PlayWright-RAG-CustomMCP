@@ -14,6 +14,7 @@ import {
   architecture,
   getTestConventions,
   writeArchitectureDoc,
+  listEnvironments,
 } from "./analysis.js";
 import { semanticSearch, buildIndex } from "./rag.js";
 import { retrieveContext, codeMap, relatedCode, checkCoverage } from "./context.js";
@@ -189,6 +190,17 @@ server.registerTool(
   async ({ id }) => reply(await getJira(id)),
 );
 
+server.registerTool(
+  "list_environments",
+  {
+    title: "List Environments",
+    description:
+      "Return the environments this framework can run against (detected from playwright.config) and the variable used to select one. ALWAYS call this before running tests and ASK the user which environment to target — then pass their answer as the 'env' arg to run_test / diagnose_test. Never assume the environment.",
+    inputSchema: {},
+  },
+  async () => reply(listEnvironments(ROOT)),
+);
+
 // ─── Browser automation ─────────────────────────────────────────────────────
 // Disabled when FRAMEWORK_ONLY=1 — use this when the official @playwright/mcp
 // server is running alongside and owns all browser driving (no tool overlap).
@@ -333,7 +345,7 @@ server.registerTool(
   {
     title: "Run Test",
     description:
-      "Run Playwright tests in the framework. Pass a spec path (relative to the framework root) to run one file, or omit to run all. Optional 'env' selects the target environment (exposed to the framework as the TEST_ENV variable, which the playwright config maps to a baseURL). Returns the result summary.",
+      "Run Playwright tests in the framework. Pass a spec path (relative to the framework root) to run one file, or omit to run all. Optional 'env' selects the target environment (passed to the framework as TEST_ENV → baseURL). If the framework has multiple environments, call list_environments and ASK the user which one to run against BEFORE running, then pass their choice as 'env'. Returns the result summary.",
     inputSchema: { path: z.string().optional(), grep: z.string().optional(), env: z.string().optional() },
   },
   async ({ path: rel, grep, env: testEnv }) => {
@@ -357,7 +369,7 @@ server.registerTool(
   {
     title: "Diagnose Test (run + parse failures + fix context)",
     description:
-      "Run a spec (or all tests) and return a STRUCTURED result: pass/fail/skip counts and, for each failure, the test title, file:line, and the error message — PLUS a retrieve_context pack relevant to the top failure so you can fix it immediately. Use this as a repair loop: diagnose_test → edit the spec with create_test_file → diagnose_test again, until failed=0.",
+      "Run a spec (or all tests) and return a STRUCTURED result: pass/fail/skip counts and, for each failure, the test title, file:line, and the error message — PLUS a retrieve_context pack relevant to the top failure so you can fix it immediately. Use this as a repair loop: diagnose_test → edit the spec with create_test_file → diagnose_test again, until failed=0. Optional 'env' targets a specific environment (ask the user which one via list_environments first).",
     inputSchema: { path: z.string().optional(), grep: z.string().optional(), env: z.string().optional() },
   },
   async ({ path: rel, grep, env: testEnv }) => {

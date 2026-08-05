@@ -39,7 +39,7 @@ flowchart TB
   end
 
   subgraph mcp["framework-mcp  (context engine · stdio)"]
-    tools["17 tools: retrieve_context, code_map,<br/>get_architecture, create_test_file, run_test…"]
+    tools["18 tools: retrieve_context, code_map,<br/>get_architecture, create_test_file, run_test…"]
     rag["AST chunks → hybrid rank → MMR → token budget"]
   end
 
@@ -146,7 +146,7 @@ TOOL_FILTER=1 TOOL_FILTER_KEEP='^mcp_' TOOL_DENY='create_new_workspace|new_works
 ```
 Also set `"chat.byokUtilityModelDefault": "mainAgent"` in VS Code settings so Copilot uses your one model for everything (no phantom "utility model").
 
-**6. Wire the MCP.** Open the **repo root** in VS Code — `.vscode/mcp.json` is already configured. Command Palette → **"MCP: List Servers"** → `framework` → **Start**. The 17 tools (incl. `retrieve_context`, `code_map`) appear in the 🔧 tools picker.
+**6. Wire the MCP.** Open the **repo root** in VS Code — `.vscode/mcp.json` is already configured. Command Palette → **"MCP: List Servers"** → `framework` → **Start**. The 18 tools (incl. `retrieve_context`, `code_map`) appear in the 🔧 tools picker.
 
 </details>
 
@@ -190,7 +190,7 @@ Keep the **dashboard** (`http://localhost:1235/dashboard`) open to watch each re
 
 ## Components in depth
 
-### `framework-mcp` — the context engine (17 tools)
+### `framework-mcp` — the context engine (18 tools)
 
 Understanding: `list_page_objects`, `list_tests`, `get_test_conventions`, `search_code`, `read_file`, `get_architecture`.
 RAG / context: **`retrieve_context`** (hybrid semantic+keyword ranking → MMR de-dup → token-budgeted, cited pack), **`check_coverage`** (requirement/story → related tests + confidence verdict), **`code_map`** (skeleton), **`related_code`** (import-graph neighbourhood: deps + dependents), `semantic_search`, `build_rag_index`.
