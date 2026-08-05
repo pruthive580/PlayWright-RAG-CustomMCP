@@ -58,10 +58,11 @@ Beyond "indexing works," how relevant is what `retrieve_context` returns? For ev
 method across 6 real repos, a natural query was synthesized from the method name and retrieval was
 checked for whether it surfaced that exact method in the top-6:
 
-**84% hit@6 · MRR 0.68 across 179 methods in 6 repos** (per-repo 67–100%). These are name-derived
-queries — a capability *floor* (favourable to retrieval), not a hard semantic benchmark. On the
-bundled sample's hand-authored queries (including non-name-overlap ones) it is **hit@6 100% /
-MRR 0.80**. Harness: `test/relevance-eval.mjs`.
+With **symbol-aware reranking** (when a query names a symbol, that symbol is surfaced):
+**99% hit@6 · MRR 0.91 across 179 methods in 6 repos** — 5 of 6 repos at 100% — up from 84% / MRR
+0.68 before the rerank. The remaining 1/179 is genuine ambiguity; true 100% is not a healthy target
+(it overfits identifier overlap). These are name-derived queries — a capability floor; the bundled
+sample's hand-authored (semantic) queries stay at **hit@6 100%**. Harness: `test/relevance-eval.mjs`.
 
 ## Test generation on unseen frameworks
 

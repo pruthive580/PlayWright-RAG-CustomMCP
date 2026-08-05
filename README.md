@@ -175,7 +175,7 @@ Understanding: `list_page_objects`, `list_tests`, `get_test_conventions`, `searc
 RAG / context: **`retrieve_context`** (hybrid semantic+keyword ranking → MMR de-dup → token-budgeted, cited pack), **`code_map`** (skeleton), **`related_code`** (import-graph neighbourhood: deps + dependents), `semantic_search`, `build_rag_index`.
 Generation & repair: `create_test_file` (POM-correct), `write_architecture_doc`, `run_test`, **`diagnose_test`** (run → structured failure + fix-context, for a generate→run→repair loop).
 
-The retrieval upgrade in one line: **AST-aware chunking** (whole methods/classes/tests, not line fragments) → **hybrid ranking** → **MMR** → **token budget**. Validated **28/28** (see `framework-mcp/VALIDATION.md`); retrieval quality **hit@6 = 100%, MRR 0.80** on the sample (`framework-mcp/test/eval-retrieval.mjs`).
+The retrieval upgrade in one line: **AST-aware chunking** (whole methods/classes/tests, not line fragments) → **hybrid ranking** → **MMR** → **token budget**. Validated **28/28** (see `framework-mcp/VALIDATION.md`); retrieval quality **99% hit@6 across 6 real repos** (178/179, with symbol-aware reranking), 100% on the sample (`framework-mcp/test/`).
 
 **Framework-agnostic:** point `FRAMEWORK_ROOT` at *your own* Playwright TS repo — the MCP auto-detects page objects, the import header, fixtures, tags, and data files — **verified on 166 real OSS Playwright repos, 0 crashes** — tests detected in 121/130 spec-bearing repos, 43 distinct import-header conventions inferred (see [`framework-mcp/REALWORLD-VALIDATION.md`](framework-mcp/REALWORLD-VALIDATION.md)).
 

@@ -80,7 +80,13 @@ export async function retrieveContext(root: string, query: string, opts: Retriev
     .map((c) => {
       const sem = cosine(qvec, c.vector);
       const lex = lexicalScore(qTerms, c);
-      return { c, score: 0.65 * sem + 0.35 * lex };
+      // symbol-aware boost: if the query strongly names this chunk's symbol (e.g. "open cart"
+      // → InventoryPage.openCart), surface it — the thing you named should rank first.
+      const symName = String(c.symbol).split(/[›.:]/).pop() || "";
+      const st = terms(symName.replace(/([a-z0-9])([A-Z])/g, "$1 $2")); // split camelCase so "openCart" → open, cart
+      const symHit = st.length ? st.filter((t) => qTerms.has(t)).length / st.length : 0;
+      const boost = symHit >= 0.6 ? 0.4 * symHit : 0;
+      return { c, score: 0.65 * sem + 0.35 * lex + boost };
     })
     .filter((x) => x.score >= minScore)
     .sort((a, b) => b.score - a.score)
