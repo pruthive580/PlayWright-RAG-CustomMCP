@@ -1,11 +1,11 @@
 # MCP + Adapter Validation Report
 
-Result: **30/30 checks passed**.
-Adapter slimming over 13 live model calls: 24491 → 12467 tool tokens (**-49%**).
+Result: **31/31 checks passed**.
+Adapter slimming over 13 live model calls: 26783 → 13507 tool tokens (**-50%**).
 
 | Layer | Check | Result | Detail |
 |---|---|---|---|
-| surface | `tool inventory` | ✅ PASS | 15 tools: build_rag_index, code_map, create_test_file, diagnose_test, get_architecture, ge |
+| surface | `tool inventory` | ✅ PASS | 16 tools: build_rag_index, check_coverage, code_map, create_test_file, diagnose_test, get_ |
 | mcp | `list_page_objects` | ✅ PASS | [ { "name": "BasePage", "abstract": true, "file": "src/pages/BasePage.ts", "meth |
 | mcp | `list_tests` | ✅ PASS | [ { "file": "tests/auth/login.spec.ts", "suites": [ "Authentication" ], "tests": |
 | mcp | `get_test_conventions` | ✅ PASS | { "importHeader": "import { test, expect } from '../../src/fixtures/test-fixture |
@@ -18,6 +18,7 @@ Adapter slimming over 13 live model calls: 24491 → 12467 tool tokens (**-49%**
 | mcp | `retrieve_context` | ✅ PASS | Context pack for: "how do we log in the standard user" — 11 chunks, ~988 tokens  |
 | mcp | `code_map` | ✅ PASS | ### src/pages/BasePage.ts class BasePage «abstract» + goto() + waitForVisible(lo |
 | mcp | `related_code` | ✅ PASS | # src/pages/InventoryPage.ts ## defines class InventoryPage extends BasePage + e |
+| mcp | `check_coverage` | ✅ PASS | { "verdict": "likely-covered", "confidence": 0.9, "relatedTests": [ { "file": "t |
 | mcp | `create_test_file` | ✅ PASS | Created tests/generated/_probe.spec.ts |
 | mcp | `run_test` | ✅ PASS | Running 1 test using 1 worker ✓ 1 [chromium] › tests/generated/_probe.spec.ts:4: |
 | mcp | `diagnose_test` | ✅ PASS | { "passed": 1, "failed": 0, "skipped": 0, "failures": [] } |

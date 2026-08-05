@@ -16,7 +16,7 @@ import {
   writeArchitectureDoc,
 } from "./analysis.js";
 import { semanticSearch, buildIndex } from "./rag.js";
-import { retrieveContext, codeMap, relatedCode } from "./context.js";
+import { retrieveContext, codeMap, relatedCode, checkCoverage } from "./context.js";
 import { runDiagnose } from "./diagnose.js";
 import { BrowserSession } from "./browser.js";
 
@@ -164,6 +164,17 @@ server.registerTool(
     inputSchema: { target: z.string().describe("A file path (relative to root) or a class/function name") },
   },
   async ({ target }) => reply(relatedCode(ROOT, target)),
+);
+
+server.registerTool(
+  "check_coverage",
+  {
+    title: "Check Coverage",
+    description:
+      "Given a requirement / user story / acceptance criteria (natural language, e.g. from a Jira issue), find existing tests that likely cover it. Returns a verdict (likely-covered / partial / not-covered), a confidence score, and the related test cases (file + title). This is a CONFIDENCE signal from semantic matching — review the listed cases to confirm real coverage before deciding to author a new test.",
+    inputSchema: { requirement: z.string().describe("The requirement / story / acceptance criteria to check") },
+  },
+  async ({ requirement }) => reply(await checkCoverage(ROOT, requirement)),
 );
 
 // ─── Browser automation ─────────────────────────────────────────────────────

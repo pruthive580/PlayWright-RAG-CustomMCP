@@ -175,6 +175,29 @@ export function relatedCode(root: string, target: string): string {
   ].filter(Boolean).join("\n");
 }
 
+export interface CoverageResult {
+  verdict: "likely-covered" | "partial" | "not-covered";
+  confidence: number;
+  relatedTests: { file: string; title: string; score: number }[];
+  note: string;
+}
+/**
+ * Given a requirement / user story / acceptance criteria, find existing tests that likely cover it
+ * (semantic match against test chunks). Returns a CONFIDENCE signal + the related cases — not proof.
+ */
+export async function checkCoverage(root: string, requirement: string, opts: { tokenBudget?: number } = {}): Promise<CoverageResult> {
+  const pack = await retrieveContext(root, requirement, { tokenBudget: opts.tokenBudget ?? 1800, kinds: ["test"] });
+  const relatedTests = pack.items.map((it) => ({ file: it.file, title: it.symbol.replace(/^test:\s*/, ""), score: it.score })).slice(0, 6);
+  const top = relatedTests[0]?.score ?? 0;
+  const verdict = top >= 0.55 ? "likely-covered" : top >= 0.4 ? "partial" : "not-covered";
+  return {
+    verdict,
+    confidence: Number(top.toFixed(2)),
+    relatedTests,
+    note: "Confidence signal from semantic matching against existing tests — review the listed cases to confirm real coverage before deciding to author a new test.",
+  };
+}
+
 /** A signatures-only skeleton of the framework — breadth without the token cost of full source. */
 export function codeMap(root: string, opts: { area?: string } = {}): string {
   const project = createProject(root);
