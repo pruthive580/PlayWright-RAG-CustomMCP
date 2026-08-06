@@ -72,6 +72,21 @@ flowchart TB
 
 > Two honest clarifications: (1) the **"custom MCP" and the "RAG" are the same server** — `framework-mcp` wears both hats, not two separate MCPs; (2) Jira is **either** our driver-agnostic `get_jira` tool **or** an external Atlassian MCP — you don't need both. The **adapter is a proxy layer**, not an MCP.
 
+## Use it à la carte
+
+Every tool is independently callable — adopt the whole flow, or just one piece:
+
+| Use it just for… | Tools | Needs |
+|---|---|---|
+| **Codebase Q&A / RAG** | `retrieve_context`, `semantic_search`, `check_coverage`, `code_map`, `related_code`, `get_architecture` | embedding model |
+| **Test authoring** | `get_test_conventions` → `create_test_file` → `diagnose_test` | nothing extra (Playwright MCP only for explore-driven) |
+| **Coverage check** | `check_coverage` | embedding model |
+| **Understanding a framework** | `list_page_objects`, `list_tests`, `get_architecture`, `code_map`, `read_file`, `search_code` | nothing (pure static analysis) |
+| **Full Jira → green flow** | all of the above + `get_jira` + env-aware `run_test` | Jira token |
+| **Just the adapter** | `slim-agent-adapter` on its own | nothing — works for *any* local-LLM + MCP + VS Code setup |
+
+**No coupling.** Jira is just one entry point (start from plain English or a pasted requirement instead), the Playwright MCP is optional (only for explore-driven authoring), and the adapter is optional (only to speed up a small local model). The only hard dependency for the RAG tools is the embedding model — so you can start small (just RAG, or just authoring) and grow into the full pipeline.
+
 ## Architecture
 
 ```mermaid
